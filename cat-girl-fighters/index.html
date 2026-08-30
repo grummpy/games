@@ -543,25 +543,32 @@ function portraitFor(who, kind) {
   return null;
 }
 
-function drawJumbotron(img, x, y, w, h, tint) {
+function drawJumbotron(img, x, y, w, h, tint, caption) {
   if (!img) return;
   const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
   ctx.save();
+  ctx.fillStyle = '#05050c';
+  ctx.fillRect(x - 6, y - 18, w + 12, h + 28);
   ctx.beginPath();
-  if (ctx.roundRect) ctx.roundRect(x, y, w, h, 10); else ctx.rect(x, y, w, h);
+  if (ctx.roundRect) ctx.roundRect(x, y, w, h, 8); else ctx.rect(x, y, w, h);
   ctx.clip();
   const cropH = ih * 0.62;
   ctx.drawImage(img, 0, 0, iw, cropH, x, y, w, h);
   ctx.fillStyle = tint;
-  ctx.globalAlpha = 0.18;
+  ctx.globalAlpha = 0.16;
   ctx.fillRect(x, y, w, h);
   ctx.restore();
   ctx.save();
-  ctx.strokeStyle = tint.replace('0.18', '1');
+  ctx.strokeStyle = tint;
   ctx.shadowColor = tint;
-  ctx.shadowBlur = 16;
+  ctx.shadowBlur = 12;
   ctx.lineWidth = 3;
-  ctx.strokeRect(x, y, w, h);
+  ctx.strokeRect(x - 6, y - 18, w + 12, h + 28);
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = tint;
+  ctx.font = '700 10px Orbitron, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(caption || 'LIVE FEED', x + w / 2, y - 5);
   ctx.restore();
 }
 
@@ -581,11 +588,6 @@ function drawStage() {
     ctx.fillText('LIVE BATTLE', W-28, 86);
     ctx.font = `700 ${Math.max(12, W*0.012)}px Orbitron, sans-serif`;
     ctx.fillText('NEON ARENA CHAMPIONSHIP', W-28, 108);
-
-    const leftP = portraitFor('shiroka');
-    const rightP = portraitFor('ragna');
-    drawJumbotron(leftP, 36, fy - 210, 92, 128, '#00e8ff');
-    drawJumbotron(rightP, W - 128, fy - 210, 92, 128, '#ff3db4');
 
     ctx.strokeStyle = 'rgba(0,255,255,0.10)';
     ctx.lineWidth = 1;
@@ -660,203 +662,265 @@ function polar(x, y, ang, len) {
   return { x: x + Math.cos(ang) * len, y: y + Math.sin(ang) * len };
 }
 
+function drawTail(hipX, hipY, tail1, tail2, pal, bodyScale, who) {
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = pal.hairDark;
+  ctx.lineWidth = (who === 'ragna' ? 18 : 16) * bodyScale;
+  ctx.beginPath();
+  ctx.moveTo(hipX - 2, hipY + 6);
+  ctx.quadraticCurveTo(tail1.x, tail1.y, tail2.x, tail2.y);
+  ctx.stroke();
+  ctx.strokeStyle = pal.hair;
+  ctx.lineWidth = (who === 'ragna' ? 12 : 10) * bodyScale;
+  ctx.stroke();
+  ctx.fillStyle = pal.hair;
+  ctx.beginPath();
+  ctx.arc(tail2.x, tail2.y, 8 * bodyScale, 0, Math.PI*2);
+  ctx.fill();
+}
+
+function drawHair(who, pal, head, headR, hipY, pose, bodyScale) {
+  const b = bodyScale;
+  ctx.fillStyle = pal.hairDark;
+  if (who === 'shiroka') {
+    ctx.beginPath();
+    ctx.moveTo(head.x + 8 * b, head.y);
+    ctx.bezierCurveTo(head.x + 36 * b, head.y + 10 * b, head.x + 28 * b, hipY - 10 * b, head.x + 10 * b, hipY + 18 * b);
+    ctx.bezierCurveTo(head.x + 2 * b, hipY + 4 * b, head.x + 16 * b, head.y + 30 * b, head.x + 4 * b, head.y + 8 * b);
+    ctx.fill();
+    ctx.fillStyle = pal.hair;
+    ctx.beginPath();
+    ctx.moveTo(head.x - 12 * b, head.y - 4 * b);
+    ctx.bezierCurveTo(head.x - 38 * b, head.y + 20 * b, head.x - 24 * b, hipY, head.x - 6 * b, hipY + 22 * b);
+    ctx.bezierCurveTo(head.x + 8 * b, hipY - 8 * b, head.x - 8 * b, head.y + 28 * b, head.x + 2 * b, head.y);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(head.x, head.y - headR * 0.55, headR * 1.35, headR * 0.95, -0.15, 0, Math.PI*2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(head.x + 10 * b, head.y - 2 * b, 10 * b, 16 * b, 0.5, 0, Math.PI*2);
+    ctx.fill();
+  } else {
+    ctx.fillStyle = pal.hairDark;
+    ctx.beginPath();
+    ctx.moveTo(head.x - 18 * b, head.y + 6 * b);
+    ctx.lineTo(head.x - 8 * b, head.y - 22 * b);
+    ctx.lineTo(head.x + 2 * b, head.y - 8 * b);
+    ctx.lineTo(head.x + 12 * b, head.y - 26 * b);
+    ctx.lineTo(head.x + 22 * b, head.y - 6 * b);
+    ctx.lineTo(head.x + 16 * b, head.y + 10 * b);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = pal.hair;
+    ctx.beginPath();
+    ctx.ellipse(head.x + 2 * b, head.y - 6 * b, headR * 1.2, headR * 1.05, -0.2, 0, Math.PI*2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(head.x - 6 * b, head.y - 8 * b);
+    ctx.lineTo(head.x - 2 * b, head.y - 28 * b);
+    ctx.lineTo(head.x + 8 * b, head.y - 10 * b);
+    ctx.fill();
+  }
+}
+
+function drawEars(pal, head, headR, pose, bodyScale) {
+  const b = bodyScale;
+  const earL = polar(head.x - 7 * b, head.y - headR * 0.35, -2.35 - pose.ear, 20 * b);
+  const earR = polar(head.x + 8 * b, head.y - headR * 0.35, -0.78 + pose.ear, 20 * b);
+  ctx.fillStyle = pal.hair;
+  ctx.beginPath();
+  ctx.moveTo(head.x - 8 * b, head.y - 2 * b);
+  ctx.lineTo(earL.x, earL.y);
+  ctx.lineTo(head.x - 1 * b, head.y - 10 * b);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(head.x + 8 * b, head.y - 2 * b);
+  ctx.lineTo(earR.x, earR.y);
+  ctx.lineTo(head.x + 1 * b, head.y - 10 * b);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#f4a3b8';
+  ctx.beginPath();
+  ctx.moveTo(head.x - 6 * b, head.y - 4 * b);
+  ctx.lineTo(earL.x * 0.55 + head.x * 0.45, earL.y * 0.55 + (head.y - 4 * b) * 0.45);
+  ctx.lineTo(head.x - 1.5 * b, head.y - 8 * b);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(head.x + 6 * b, head.y - 4 * b);
+  ctx.lineTo(earR.x * 0.55 + head.x * 0.45, earR.y * 0.55 + (head.y - 4 * b) * 0.45);
+  ctx.lineTo(head.x + 1.5 * b, head.y - 8 * b);
+  ctx.fill();
+}
+
 function drawBody(f, pose, ghost) {
   const pal = C.paletteFor(f.who);
   const fy = floorY();
-  const bodyScale = (f.spriteH || 252) / 252;
+  const bodyScale = (f.spriteH || 310) / 252;
   const hipX = 0;
   const grounded = fy + f.y;
-  const hipY = grounded - 108 * bodyScale;
-  const lean = f.who === 'ragna' ? 1.12 : 0.92;
+  const hipY = grounded - 118 * bodyScale;
+  const lean = f.who === 'ragna' ? 1.18 : 0.95;
+  const ragna = f.who === 'ragna';
 
-  const torsoLen = 46 * bodyScale;
-  const headR = (f.who === 'ragna' ? 16.5 : 15.5) * bodyScale;
-  const armLen = 28 * bodyScale;
-  const forearm = 26 * bodyScale;
-  const thigh = 38 * bodyScale;
-  const shin = 36 * bodyScale;
-  const armW = (f.who === 'ragna' ? 13 : 10) * bodyScale;
-  const legW = (f.who === 'ragna' ? 16 : 13) * bodyScale;
+  const torsoLen = 52 * bodyScale;
+  const headR = (ragna ? 18 : 16.5) * bodyScale;
+  const armLen = 30 * bodyScale;
+  const forearm = 28 * bodyScale;
+  const thigh = 42 * bodyScale;
+  const shin = 40 * bodyScale;
+  const armW = (ragna ? 20 : 16) * bodyScale;
+  const legW = (ragna ? 28 : 22) * bodyScale;
 
   const chest = polar(hipX, hipY, -Math.PI/2 + pose.torso, torsoLen);
-  const head = polar(chest.x, chest.y, -Math.PI/2 + pose.head, headR * 1.35);
-  const lShoulder = polar(chest.x, chest.y + 4, Math.PI*0.15 + pose.torso, 14 * bodyScale);
-  const rShoulder = polar(chest.x, chest.y + 4, Math.PI - Math.PI*0.15 + pose.torso, 14 * bodyScale);
+  const head = polar(chest.x, chest.y, -Math.PI/2 + pose.head, headR * 1.45);
+  const lShoulder = polar(chest.x, chest.y + 6, Math.PI * 0.18 + pose.torso, (ragna ? 20 : 16) * bodyScale);
+  const rShoulder = polar(chest.x, chest.y + 6, Math.PI - Math.PI * 0.18 + pose.torso, (ragna ? 20 : 16) * bodyScale);
   const lElbow = polar(lShoulder.x, lShoulder.y, pose.lArmS, armLen);
   const lHand = polar(lElbow.x, lElbow.y, pose.lArmS + pose.lArmE * 0.55, forearm);
   const rElbow = polar(rShoulder.x, rShoulder.y, pose.rArmS + Math.PI, armLen);
   const rHand = polar(rElbow.x, rElbow.y, pose.rArmS + Math.PI + pose.rArmE * 0.55, forearm);
-  const lHip = polar(hipX, hipY, Math.PI*0.55, 8 * bodyScale);
-  const rHip = polar(hipX, hipY, Math.PI - Math.PI*0.55, 8 * bodyScale);
+  const lHip = polar(hipX, hipY, Math.PI * 0.58, 12 * bodyScale);
+  const rHip = polar(hipX, hipY, Math.PI - Math.PI * 0.58, 12 * bodyScale);
   const lKnee = polar(lHip.x, lHip.y, Math.PI/2 + pose.lLegH, thigh);
   const lFoot = polar(lKnee.x, lKnee.y, Math.PI/2 + pose.lLegH + pose.lLegK * 0.5, shin);
   const rKnee = polar(rHip.x, rHip.y, Math.PI/2 + pose.rLegH, thigh);
   const rFoot = polar(rKnee.x, rKnee.y, Math.PI/2 + pose.rLegH + pose.rLegK * 0.5, shin);
-  const tail1 = polar(hipX - 4, hipY + 4, Math.PI * 0.82 + pose.tail * 0.4, 34 * bodyScale);
-  const tail2 = polar(tail1.x, tail1.y, Math.PI * 0.55 + pose.tail, 32 * bodyScale);
+  const tail1 = polar(hipX - 6, hipY + 6, Math.PI * 0.82 + pose.tail * 0.4, 42 * bodyScale);
+  const tail2 = polar(tail1.x, tail1.y, Math.PI * 0.5 + pose.tail, 38 * bodyScale);
 
   ctx.save();
   if (ghost) ctx.globalAlpha = ghost;
 
   if (!ghost) {
     ctx.fillStyle = pal.color;
-    ctx.globalAlpha = 0.22;
+    ctx.globalAlpha = 0.28;
     ctx.beginPath();
-    ctx.ellipse(0, grounded + 4, 34 * lean, 9, 0, 0, Math.PI*2);
+    ctx.ellipse(0, grounded + 6, 42 * lean, 11, 0, 0, Math.PI*2);
     ctx.fill();
     ctx.save();
     ctx.translate(0, grounded);
-    ctx.scale(1, -0.22);
+    ctx.scale(1, -0.18);
     ctx.translate(0, -grounded);
-    ctx.globalAlpha = 0.2;
-    drawBodySilhouette(pose, pal, bodyScale, hipX, hipY, chest, head, lShoulder, rShoulder, lElbow, rElbow, lHand, rHand, lHip, rHip, lKnee, rKnee, lFoot, rFoot, tail1, tail2, headR, armW, legW, true);
+    ctx.globalAlpha = 0.22;
+    drawBodySilhouette(f.who, pose, pal, bodyScale, hipX, hipY, chest, head, lShoulder, rShoulder, lElbow, rElbow, lHand, rHand, lHip, rHip, lKnee, rKnee, lFoot, rFoot, tail1, tail2, headR, armW, legW, true);
     ctx.restore();
     ctx.globalAlpha = 1;
   }
 
-  drawBodySilhouette(pose, pal, bodyScale, hipX, hipY, chest, head, lShoulder, rShoulder, lElbow, rElbow, lHand, rHand, lHip, rHip, lKnee, rKnee, lFoot, rFoot, tail1, tail2, headR, armW, legW, false);
+  drawBodySilhouette(f.who, pose, pal, bodyScale, hipX, hipY, chest, head, lShoulder, rShoulder, lElbow, rElbow, lHand, rHand, lHip, rHip, lKnee, rKnee, lFoot, rFoot, tail1, tail2, headR, armW, legW, false);
 
   if (f.who === 'shiroka' && (f.state === 'punch' || f.state === 'special' || (f.power && f.state === 'idle'))) {
+    ctx.save();
     ctx.strokeStyle = pal.accent;
     ctx.shadowColor = pal.accent;
-    ctx.shadowBlur = 12;
-    ctx.lineWidth = 2;
-    for (let i=0;i<3;i++) {
+    ctx.shadowBlur = 14;
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 3; i++) {
       ctx.beginPath();
-      ctx.moveTo(lHand.x, lHand.y - 4 + i*4);
-      ctx.lineTo(lHand.x + 16, lHand.y - 10 + i*7);
+      ctx.moveTo(lHand.x + 2, lHand.y - 6 + i * 6);
+      ctx.lineTo(lHand.x + 22, lHand.y - 14 + i * 8);
       ctx.stroke();
     }
-    ctx.shadowBlur = 0;
+    ctx.restore();
   }
 
   if (f.power && !ghost) {
+    ctx.save();
     ctx.strokeStyle = pal.color;
-    ctx.globalAlpha = 0.35 + Math.sin(Date.now()/80)*0.12;
+    ctx.globalAlpha = 0.32 + Math.sin(Date.now() / 80) * 0.1;
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.ellipse(0, hipY, 48, 90 * bodyScale, 0, 0, Math.PI*2);
+    ctx.ellipse(0, hipY, 58, 108 * bodyScale, 0, 0, Math.PI*2);
     ctx.stroke();
-    ctx.globalAlpha = 1;
+    ctx.restore();
   }
 
   if (f.damageLevel >= 1 && !ghost) {
-    ctx.globalAlpha = 0.35 + f.damageLevel * 0.12;
+    ctx.save();
+    ctx.globalAlpha = 0.32 + f.damageLevel * 0.12;
     ctx.fillStyle = '#8b0000';
-    for (let i=0;i<f.damageLevel*2;i++) {
+    for (let i = 0; i < f.damageLevel * 2; i++) {
       ctx.beginPath();
-      ctx.ellipse(chest.x + Math.sin(i*2.1)*10, chest.y + 8 + i*7, 5+i, 3+i*0.5, i, 0, Math.PI*2);
+      ctx.ellipse(chest.x + Math.sin(i * 2.1) * 12, chest.y + 10 + i * 8, 6 + i, 3.5 + i * 0.5, i, 0, Math.PI*2);
       ctx.fill();
     }
-    ctx.globalAlpha = 1;
+    ctx.restore();
   }
 
   ctx.restore();
   return { lHand, rHand, head, hipY };
 }
 
-function drawBodySilhouette(pose, pal, bodyScale, hipX, hipY, chest, head, lShoulder, rShoulder, lElbow, rElbow, lHand, rHand, lHip, rHip, lKnee, rKnee, lFoot, rFoot, tail1, tail2, headR, armW, legW, isRefl) {
-  const skin = pal.skin, skin2 = pal.skinShadow, hair = pal.hair, hair2 = pal.hairDark;
-  ctx.strokeStyle = pal.hair;
-  ctx.lineWidth = 10 * bodyScale;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(hipX - 2, hipY + 2);
-  ctx.quadraticCurveTo(tail1.x, tail1.y, tail2.x, tail2.y);
-  ctx.stroke();
-  ctx.strokeStyle = pal.hairDark;
-  ctx.lineWidth = 5 * bodyScale;
-  ctx.stroke();
+function drawBodySilhouette(who, pose, pal, bodyScale, hipX, hipY, chest, head, lShoulder, rShoulder, lElbow, rElbow, lHand, rHand, lHip, rHip, lKnee, rKnee, lFoot, rFoot, tail1, tail2, headR, armW, legW, isRefl) {
+  const skin = pal.skin, skin2 = pal.skinShadow;
+  const b = bodyScale;
+  ctx.shadowBlur = 0;
+
+  drawTail(hipX, hipY, tail1, tail2, pal, bodyScale, who);
+  drawHair(who, pal, head, headR, hipY, pose, bodyScale);
 
   limb(lHip.x, lHip.y, lKnee.x, lKnee.y, legW, skin2);
-  limb(lKnee.x, lKnee.y, lFoot.x, lFoot.y, legW * 0.82, skin);
+  limb(lKnee.x, lKnee.y, lFoot.x, lFoot.y, legW * 0.78, skin);
   limb(rHip.x, rHip.y, rKnee.x, rKnee.y, legW, skin2);
-  limb(rKnee.x, rKnee.y, rFoot.x, rFoot.y, legW * 0.82, skin);
-  joint(lFoot.x, lFoot.y, 5 * bodyScale, skin);
-  joint(rFoot.x, rFoot.y, 5 * bodyScale, skin);
+  limb(rKnee.x, rKnee.y, rFoot.x, rFoot.y, legW * 0.78, skin);
+  ctx.fillStyle = skin2;
+  ctx.beginPath(); ctx.ellipse(lFoot.x + 4 * b, lFoot.y + 2 * b, 11 * b, 5 * b, 0.1, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(rFoot.x + 4 * b, rFoot.y + 2 * b, 11 * b, 5 * b, 0.1, 0, Math.PI*2); ctx.fill();
 
   limb(lShoulder.x, lShoulder.y, lElbow.x, lElbow.y, armW, skin2);
-  limb(lElbow.x, lElbow.y, lHand.x, lHand.y, armW * 0.78, skin);
+  limb(lElbow.x, lElbow.y, lHand.x, lHand.y, armW * 0.8, skin);
+
+  const torsoG = ctx.createLinearGradient(chest.x - 20 * b, chest.y, chest.x + 24 * b, hipY);
+  torsoG.addColorStop(0, skin);
+  torsoG.addColorStop(1, skin2);
+  ctx.fillStyle = torsoG;
+  ctx.beginPath();
+  ctx.moveTo(lShoulder.x, lShoulder.y);
+  ctx.quadraticCurveTo(chest.x, chest.y - 8 * b, rShoulder.x, rShoulder.y);
+  ctx.quadraticCurveTo(hipX + 22 * b, hipY - 8 * b, hipX + 18 * b, hipY + 10 * b);
+  ctx.quadraticCurveTo(hipX, hipY + 16 * b, hipX - 18 * b, hipY + 10 * b);
+  ctx.quadraticCurveTo(hipX - 22 * b, hipY - 8 * b, lShoulder.x, lShoulder.y);
+  ctx.fill();
 
   ctx.fillStyle = skin;
   ctx.beginPath();
-  ctx.moveTo(lShoulder.x, lShoulder.y);
-  ctx.lineTo(rShoulder.x, rShoulder.y);
-  ctx.lineTo(hipX + 12 * bodyScale, hipY + 6);
-  ctx.lineTo(hipX - 12 * bodyScale, hipY + 6);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = skin;
-  ctx.beginPath();
-  ctx.ellipse(chest.x, chest.y + 6 * bodyScale, 13 * bodyScale, 11 * bodyScale, 0, 0, Math.PI*2);
+  ctx.ellipse(chest.x + 8 * b, chest.y + 12 * b, 9 * b, 9 * b, 0.25, 0, Math.PI*2);
   ctx.fill();
   ctx.beginPath();
-  ctx.ellipse(chest.x + 7 * bodyScale, chest.y + 10 * bodyScale, 7.5 * bodyScale, 7 * bodyScale, 0.2, 0, Math.PI*2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.ellipse(chest.x - 7 * bodyScale, chest.y + 10 * bodyScale, 7.5 * bodyScale, 7 * bodyScale, -0.2, 0, Math.PI*2);
+  ctx.ellipse(chest.x - 7 * b, chest.y + 12 * b, 9 * b, 9 * b, -0.25, 0, Math.PI*2);
   ctx.fill();
   ctx.fillStyle = skin2;
   ctx.beginPath();
-  ctx.ellipse(hipX, hipY + 2, 14 * bodyScale, 9 * bodyScale, 0, 0, Math.PI*2);
+  ctx.ellipse(hipX, hipY + 4 * b, 20 * b, 12 * b, 0, 0, Math.PI*2);
   ctx.fill();
 
   limb(rShoulder.x, rShoulder.y, rElbow.x, rElbow.y, armW, skin2);
-  limb(rElbow.x, rElbow.y, rHand.x, rHand.y, armW * 0.78, skin);
-  joint(lHand.x, lHand.y, 5 * bodyScale, skin);
-  joint(rHand.x, rHand.y, 5 * bodyScale, skin);
+  limb(rElbow.x, rElbow.y, rHand.x, rHand.y, armW * 0.8, skin);
+  joint(lHand.x, lHand.y, 6.5 * b, skin);
+  joint(rHand.x, rHand.y, 6.5 * b, skin);
 
-  const earL = polar(head.x - 8 * bodyScale, head.y - headR * 0.2, -2.4 - pose.ear, 16 * bodyScale);
-  const earR = polar(head.x + 8 * bodyScale, head.y - headR * 0.2, -0.75 + pose.ear, 16 * bodyScale);
-  ctx.fillStyle = hair;
-  ctx.beginPath();
-  ctx.moveTo(head.x - 7 * bodyScale, head.y - 4);
-  ctx.lineTo(earL.x, earL.y);
-  ctx.lineTo(head.x - 1, head.y - 8);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(head.x + 7 * bodyScale, head.y - 4);
-  ctx.lineTo(earR.x, earR.y);
-  ctx.lineTo(head.x + 1, head.y - 8);
-  ctx.fill();
-  ctx.fillStyle = '#f8b3c8';
-  ctx.beginPath();
-  ctx.moveTo(head.x - 5 * bodyScale, head.y - 6);
-  ctx.lineTo(earL.x * 0.4 + head.x * 0.6, earL.y * 0.55 + (head.y-4)*0.45);
-  ctx.lineTo(head.x - 2, head.y - 8);
-  ctx.fill();
-
-  ctx.fillStyle = hair2;
-  ctx.beginPath();
-  ctx.ellipse(head.x - 4, head.y + 8 * bodyScale, 18 * bodyScale, 22 * bodyScale, 0.4, 0, Math.PI*2);
-  ctx.fill();
-  ctx.fillStyle = hair;
-  ctx.beginPath();
-  ctx.ellipse(head.x, head.y - 2, headR * 1.15, headR * 1.25, -0.1, 0, Math.PI*2);
-  ctx.fill();
+  drawEars(pal, head, headR, pose, bodyScale);
 
   ctx.fillStyle = skin;
   ctx.beginPath();
   ctx.arc(head.x, head.y + 2, headR, 0, Math.PI*2);
   ctx.fill();
-
-  ctx.fillStyle = hair;
+  ctx.fillStyle = pal.hair;
   ctx.beginPath();
-  ctx.ellipse(head.x + 2, head.y - headR * 0.55, headR * 1.05, headR * 0.7, -0.2, Math.PI, Math.PI*2);
+  ctx.ellipse(head.x + 1 * b, head.y - headR * 0.42, headR * 1.05, headR * 0.62, -0.2, Math.PI, Math.PI * 2);
   ctx.fill();
 
   if (!isRefl) {
     ctx.fillStyle = pal.eye;
-    ctx.shadowColor = pal.eye;
-    ctx.shadowBlur = 8;
-    ctx.beginPath(); ctx.ellipse(head.x + 5 * bodyScale, head.y, 3.2 * bodyScale, 4 * bodyScale, 0, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(head.x - 5 * bodyScale, head.y + 0.5, 2.4 * bodyScale, 3.4 * bodyScale, 0, 0, Math.PI*2); ctx.fill();
-    ctx.shadowBlur = 0;
+    ctx.beginPath(); ctx.ellipse(head.x + 6 * b, head.y + 1, 3.6 * b, 4.4 * b, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(head.x - 5 * b, head.y + 1.5, 2.8 * b, 3.8 * b, 0, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(head.x + 6 * bodyScale, head.y - 1.4, 1.1 * bodyScale, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#331018';
+    ctx.beginPath(); ctx.arc(head.x + 7 * b, head.y - 0.8, 1.2 * b, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#2a1018';
     ctx.beginPath();
-    ctx.ellipse(head.x + 3 * bodyScale, head.y + 7 * bodyScale, 4 * bodyScale, 1.6 * bodyScale, 0.1, 0, Math.PI);
+    ctx.ellipse(head.x + 3 * b, head.y + 8 * b, 4.5 * b, 1.8 * b, 0.12, 0, Math.PI);
     ctx.fill();
   }
 }
@@ -866,15 +930,18 @@ function drawFighter(f) {
   ctx.save();
   ctx.translate(f.x, 0);
   ctx.scale(f.facing, 1);
-  if (f.power) {
-    ctx.shadowColor = f.color;
-    ctx.shadowBlur = 24 + Math.sin(Date.now()/100)*8;
-  } else {
-    ctx.shadowColor = f.who === 'shiroka' ? 'rgba(0,255,255,.45)' : 'rgba(255,0,255,.45)';
-    ctx.shadowBlur = 10;
-  }
-  drawBody(f, pose, 0);
   ctx.shadowBlur = 0;
+  drawBody(f, pose, 0);
+  if (f.power) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = f.who === 'shiroka' ? 'rgba(0,232,255,0.45)' : 'rgba(255,61,180,0.45)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(0, floorY() + f.y - 130, 34, 100, 0, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.restore();
+  }
   ctx.restore();
 }
 
@@ -958,8 +1025,8 @@ function drawSaveCutscene(winner, loser) {
   const leftImg = portraitFor(winner.who);
   const rightImg = portraitFor(loser.who);
   const screenH = 110, screenW = 78;
-  drawJumbotron(leftImg, W*0.18 - screenW/2, 28, screenW, screenH, winner.color);
-  drawJumbotron(rightImg, W*0.82 - screenW/2, 28, screenW, screenH, loser.color);
+  drawJumbotron(leftImg, W*0.18 - screenW/2, 36, screenW, screenH, winner.color, 'KISS CAM');
+  drawJumbotron(rightImg, W*0.82 - screenW/2, 36, screenW, screenH, loser.color, 'KISS CAM');
 
   ctx.save();
   ctx.setTransform(1,0,0,1,0,0);
@@ -1076,6 +1143,9 @@ function loop(now) {
   pressed.clear();
 }
 requestAnimationFrame(loop);
+if (/[?&]demo=1\b/.test(location.search)) {
+  window.addEventListener('load', () => { pick(0); startGame(); });
+}
 </script>
 </body>
 </html>

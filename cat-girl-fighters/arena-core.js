@@ -11,13 +11,13 @@
     shiroka: {
       name: 'SHIROKA', color: '#00e8ff', alt: '#9ef6ff', speed: 5.2, jump: 14,
       punchDamage: 10, kickDamage: 13, specialDamage: 26, range: 110, isSpeed: true,
-      skin: '#f3d4c4', skinShadow: '#c48a7a', hair: '#d8e4ee', hairDark: '#8aa0b4',
+      skin: '#f7d9cb', skinShadow: '#e8b7a4', hair: '#e8f0f6', hairDark: '#9db0c2',
       eye: '#ff4d7a', accent: '#00e8ff', title: 'SILVER CLAW', role: 'SPEED'
     },
     ragna: {
       name: 'RAGNA', color: '#ff3db4', alt: '#ff9ad8', speed: 4.0, jump: 12,
       punchDamage: 14, kickDamage: 17, specialDamage: 32, range: 125, isSpeed: false,
-      skin: '#e8b39a', skinShadow: '#b56b58', hair: '#ff4ec8', hairDark: '#c01880',
+      skin: '#f0c4b0', skinShadow: '#dca089', hair: '#ff4ec8', hairDark: '#c01880',
       eye: '#ff66ee', accent: '#ff3db4', title: 'CRIMSON FANG', role: 'POWER'
     }
   };
@@ -159,7 +159,7 @@
       hp: 100, energy: 0, facing: startX < 0 ? 1 : -1,
       state: 'idle', st: 0, frame: 0, frameT: 0,
       power: false, powerT: 0, inv: 0, atkHit: false,
-      damageLevel: 0, spriteH: 252, spriteW: 86
+      damageLevel: 0, spriteH: 310, spriteW: 96
     };
   }
 

@@ -37,6 +37,7 @@ check('makeFighter copies stats and plants a body-sized hitbox, not a photo card
   assert.equal(f.punchDamage, 10);
   assert.ok(Array.isArray(f.punchDamage) === false);
   assert.ok(f.spriteW < 120, 'body width should be a silhouette, not a JPEG card');
+  assert.ok(f.spriteH >= 280, 'bodies should occupy vertical arena space');
   assert.equal(f.state, 'idle');
 });
 
