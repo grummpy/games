@@ -1,0 +1,1364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Vale Guardians — SNES Style Adventure</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: #1a1520;
+    color: #e8e0d0;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    user-select: none;
+  }
+  .bg {
+    position: fixed; inset:0;
+    background: radial-gradient(ellipse at 50% 30%, #2a2035 0%, #0f0c14 70%);
+    z-index:0;
+  }
+  #gameContainer {
+    position: relative;
+    z-index:1;
+    box-shadow: 0 0 0 4px #3a2a4a, 0 0 40px rgba(100,60,180,0.3);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  canvas { display:block; background:#1e2a1a; image-rendering: pixelated; }
+  #uiOverlay {
+    position:absolute; top:0; left:0; right:0; bottom:0;
+    pointer-events:none;
+    font-family: system-ui, sans-serif;
+  }
+  .screen {
+    position:absolute; inset:0;
+    background: rgba(15,12,20,0.92);
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    color:#f0e8d8;
+    z-index:20;
+    pointer-events:auto;
+  }
+  .screen.hidden { display:none; }
+  h1 {
+    font-size: clamp(1.8rem, 5vw, 3rem);
+    font-weight:800;
+    letter-spacing:3px;
+    background: linear-gradient(90deg, #e8c070, #f0e0a0, #c0a060);
+    -webkit-background-clip:text; background-clip:text;
+    -webkit-text-fill-color:transparent;
+    text-shadow: 0 0 30px rgba(200,150,50,0.4);
+    margin-bottom:8px;
+  }
+  .subtitle { color:#a09070; font-size:0.9rem; letter-spacing:2px; margin-bottom:30px; }
+  .char-select {
+    display:flex; gap:24px; flex-wrap:wrap; justify-content:center; margin:20px 0;
+  }
+  .char-card {
+    width:160px; padding:16px 12px;
+    background: linear-gradient(180deg, #2a2035, #1a1525);
+    border: 3px solid #5a4a6a;
+    border-radius:8px;
+    cursor:pointer;
+    text-align:center;
+    transition: all 0.2s;
+  }
+  .char-card:hover, .char-card.selected {
+    border-color: #e8c070;
+    box-shadow: 0 0 20px rgba(232,192,112,0.4);
+    transform: translateY(-4px);
+  }
+  .char-card h3 { font-size:1rem; margin:8px 0 4px; color:#e8c070; }
+  .char-card p { font-size:0.7rem; color:#a09080; line-height:1.3; }
+  .char-icon {
+    width:64px; height:64px; margin:0 auto;
+    image-rendering:pixelated;
+    border-radius:4px;
+    background:#0a0810;
+  }
+  button.primary {
+    margin-top:20px;
+    padding:12px 36px;
+    font-size:1rem; font-weight:700; letter-spacing:1px;
+    background: linear-gradient(180deg, #e8c070, #c09040);
+    color:#1a1008;
+    border:none; border-radius:6px;
+    cursor:pointer;
+    box-shadow: 0 4px 0 #8a6030;
+  }
+  button.primary:hover { filter:brightness(1.1); }
+  button.primary:active { transform:translateY(2px); box-shadow:0 2px 0 #8a6030; }
+  .hud {
+    position:absolute; top:8px; left:8px; right:8px;
+    display:flex; justify-content:space-between; align-items:flex-start;
+    pointer-events:none; z-index:10;
+  }
+  .hearts { display:flex; gap:3px; }
+  .heart {
+    width:18px; height:16px;
+    background: #c03030;
+    clip-path: path('M9 16 C9 16 0 10 0 5 C0 2 2 0 4.5 0 C6.5 0 8 1.5 9 3 C10 1.5 11.5 0 13.5 0 C16 0 18 2 18 5 C18 10 9 16 9 16');
+  }
+  .heart.empty { background:#3a2030; }
+  .hud-right { text-align:right; font-size:0.75rem; color:#e8d8b0; text-shadow:1px 1px 0 #000; }
+  .hud-right div { margin-bottom:2px; }
+  .controls-hint {
+    position:absolute; bottom:6px; left:0; right:0;
+    text-align:center; font-size:0.65rem; color:#706050;
+    pointer-events:none;
+  }
+  .dialog {
+    position:absolute; bottom:40px; left:50%; transform:translateX(-50%);
+    width:90%; max-width:480px;
+    background: rgba(20,15,30,0.95);
+    border: 3px solid #8a7040;
+    border-radius:6px;
+    padding:12px 16px;
+    font-size:0.85rem;
+    color:#f0e8d0;
+    display:none;
+    z-index:15;
+    pointer-events:none;
+  }
+  .dialog.show { display:block; }
+  .dialog .name { color:#e8c070; font-weight:700; margin-bottom:4px; }
+  .mode-btns { display:flex; gap:12px; margin-top:16px; flex-wrap:wrap; justify-content:center; }
+  .mode-btns button {
+    padding:8px 16px; font-size:0.8rem;
+    background:#2a2035; color:#e8d0b0;
+    border:2px solid #5a4a6a; border-radius:4px; cursor:pointer;
+  }
+  .mode-btns button.active { border-color:#e8c070; background:#3a2a45; }
+  footer { margin-top:12px; font-size:0.7rem; color:#5a4a5a; z-index:1; }
+</style>
+</head>
+<body>
+  <div class="bg"></div>
+  
+  <div id="gameContainer">
+    <canvas id="gameCanvas" width="800" height="480"></canvas>
+    
+    <div id="uiOverlay">
+      <div class="hud" id="hud" style="display:none;">
+        <div>
+          <div class="hearts" id="hearts"></div>
+          <div style="font-size:0.7rem;color:#e8d8b0;text-shadow:1px 1px 0 #000;margin-top:4px;" id="playerName"></div>
+        </div>
+        <div class="hud-right">
+          <div>Monsters: <span id="killCount">0</span></div>
+          <div>Allies: <span id="allyCount">0</span></div>
+          <div id="modeLabel">Solo</div>
+        </div>
+      </div>
+      <div class="dialog" id="dialogBox">
+        <div class="name" id="dialogName"></div>
+        <div id="dialogText"></div>
+      </div>
+      <div class="controls-hint" id="controlsHint" style="display:none;">
+        P1: Arrows + Z/Space &nbsp;·&nbsp; P2: WASD + F &nbsp;·&nbsp; Talk: E &nbsp;·&nbsp; Summon Ally (Solo): C &nbsp;·&nbsp; Pause: P
+      </div>
+    </div>
+    
+    <!-- Title Screen -->
+    <div class="screen" id="titleScreen">
+      <h1>VALE GUARDIANS</h1>
+      <div class="subtitle">A 16-bit Style Adventure · One Town · Three Heroes</div>
+      <p style="max-width:420px;text-align:center;color:#a09080;font-size:0.85rem;line-height:1.5;margin-bottom:20px;">
+        Explore the village of Eldenbrook, battle invading monsters, summon allies, fight side-by-side or duel, and take down the Shadow Knight boss.
+      </p>
+      <button class="primary" id="startBtn">BEGIN QUEST</button>
+      <div style="margin-top:24px;font-size:0.7rem;color:#5a4a5a;">Inspired by classic Super Nintendo adventures · Pure HTML5</div>
+    </div>
+    
+    <!-- Character Select -->
+    <div class="screen hidden" id="selectScreen">
+      <h1 style="font-size:1.8rem;">CHOOSE YOUR HERO</h1>
+      <div class="subtitle">Each has unique combat style</div>
+      <div class="char-select" id="charCards">
+        <div class="char-card" data-char="0">
+          <div class="char-icon" id="icon0"></div>
+          <h3>Kael the Brave</h3>
+          <p>Sword · Balanced<br>High speed · Melee focus<br>Courage</p>
+        </div>
+        <div class="char-card" data-char="1">
+          <div class="char-icon" id="icon1"></div>
+          <h3>Lyra the Wise</h3>
+          <p>Magic Staff · Ranged<br>Lower HP · Projectiles<br>Wisdom</p>
+        </div>
+        <div class="char-card" data-char="2">
+          <div class="char-icon" id="icon2"></div>
+          <h3>Riven the Strong</h3>
+          <p>Axe & Shield · Tank<br>High HP · Slow · Power</p>
+        </div>
+      </div>
+      <div class="mode-btns">
+        <button id="modeSolo" class="active">Solo (+ AI Allies)</button>
+        <button id="modeCoop">Local Co-op (2 Players)</button>
+        <button id="modePvp">Local Duel Mode</button>
+      </div>
+      <button class="primary" id="playBtn" disabled style="opacity:0.5;">ENTER ELDENBROOK</button>
+      <div style="margin-top:16px;font-size:0.75rem;color:#706050;">
+        Solo: Press C to summon AI companions · Co-op: Player 2 uses WASD + F · Duel: Friendly fire on
+      </div>
+    </div>
+    
+    <!-- Pause / Game Over / Victory -->
+    <div class="screen hidden" id="pauseScreen">
+      <h1 style="font-size:2rem;">PAUSED</h1>
+      <button class="primary" id="resumeBtn">RESUME</button>
+      <button class="primary" id="quitBtn" style="margin-top:12px;background:linear-gradient(180deg,#a06060,#804040);box-shadow:0 4px 0 #502020;">QUIT TO TITLE</button>
+    </div>
+    
+    <div class="screen hidden" id="gameOverScreen">
+      <h1 style="font-size:2rem;color:#e06060;">DEFEATED</h1>
+      <p style="color:#a09080;margin:12px 0;">The Shadow Knight claims another victory...</p>
+      <div style="font-size:1.1rem;color:#e8c070;">Monsters slain: <span id="goKills">0</span></div>
+      <button class="primary" id="retryBtn" style="margin-top:20px;">TRY AGAIN</button>
+      <button class="primary" id="titleBtn" style="margin-top:12px;background:linear-gradient(180deg,#606080,#404060);box-shadow:0 4px 0 #202040;">TITLE SCREEN</button>
+    </div>
+    
+    <div class="screen hidden" id="victoryScreen">
+      <h1 style="font-size:2rem;">VICTORY!</h1>
+      <p style="color:#a09080;margin:12px 0;max-width:360px;text-align:center;">
+        The Shadow Knight falls! Eldenbrook is safe... for now.<br>
+        You and your companions defended the Vale.
+      </p>
+      <div style="font-size:1.1rem;color:#e8c070;">Monsters slain: <span id="vicKills">0</span></div>
+      <button class="primary" id="vicTitleBtn" style="margin-top:24px;">RETURN TO TITLE</button>
+    </div>
+  </div>
+  
+  <footer>Vale Guardians · One Level Prototype · Works on Mac (Safari/Chrome) · Offline</footer>
+
+<script>
+// ============================================================
+// VALE GUARDIANS - SNES-style top-down adventure (one town)
+// ============================================================
+
+(() => {
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = 800, H = 480;
+  const TILE = 32;
+  const MAP_W = 40, MAP_H = 30; // large town
+
+  // Screens
+  const titleScreen = document.getElementById('titleScreen');
+  const selectScreen = document.getElementById('selectScreen');
+  const pauseScreen = document.getElementById('pauseScreen');
+  const gameOverScreen = document.getElementById('gameOverScreen');
+  const victoryScreen = document.getElementById('victoryScreen');
+  const hud = document.getElementById('hud');
+  const heartsEl = document.getElementById('hearts');
+  const playerNameEl = document.getElementById('playerName');
+  const killCountEl = document.getElementById('killCount');
+  const allyCountEl = document.getElementById('allyCount');
+  const modeLabel = document.getElementById('modeLabel');
+  const dialogBox = document.getElementById('dialogBox');
+  const dialogName = document.getElementById('dialogName');
+  const dialogText = document.getElementById('dialogText');
+  const controlsHint = document.getElementById('controlsHint');
+
+  // State
+  let state = 'title'; // title | select | play | pause | gameover | victory
+  let selectedChar = -1;
+  let gameMode = 'solo'; // solo | coop | pvp
+  let players = [];
+  let allies = [];
+  let enemies = [];
+  let projectiles = [];
+  let particles = [];
+  let npcs = [];
+  let camera = {x:0, y:0};
+  let kills = 0;
+  let bossSpawned = false;
+  let bossDefeated = false;
+  let keys = {};
+  let lastTime = 0;
+  let dialogTimer = 0;
+  let spawnTimer = 0;
+  let frame = 0;
+
+  // Character defs
+  const CHARS = [
+    { name:'Kael the Brave', color:'#3a8a3a', accent:'#e8c070', hp:6, speed:2.4, melee:true, range:0, dmg:2, desc:'Courage' },
+    { name:'Lyra the Wise',  color:'#8a4a9a', accent:'#e0a0e0', hp:4, speed:2.1, melee:false, range:140, dmg:1.5, desc:'Wisdom' },
+    { name:'Riven the Strong',color:'#4a6a9a', accent:'#c0d0e0', hp:10,speed:1.7, melee:true, range:0, dmg:3, desc:'Power' }
+  ];
+
+  // Simple tile colors / types
+  // 0 grass, 1 path, 2 wall, 3 water, 4 tree, 5 flower, 6 house, 7 roof, 8 fountain, 9 bridge
+  const TILE_COLORS = {
+    0: '#3a6a2a', // grass
+    1: '#8a7a5a', // path
+    2: '#5a4a3a', // wall / rock
+    3: '#2a5a8a', // water
+    4: '#1a4a1a', // tree base
+    5: '#5a8a3a', // flower grass
+    6: '#6a5a4a', // house wall
+    7: '#8a3a2a', // roof
+    8: '#4a7a9a', // fountain
+    9: '#7a6a4a'  // bridge
+  };
+
+  // Build a simple town map (procedural but fixed seed)
+  let map = [];
+  function buildMap() {
+    map = [];
+    for (let y=0; y<MAP_H; y++) {
+      map[y] = [];
+      for (let x=0; x<MAP_W; x++) {
+        // Border walls
+        if (x===0 || y===0 || x===MAP_W-1 || y===MAP_H-1) { map[y][x]=2; continue; }
+        // Default grass
+        map[y][x] = 0;
+        // Paths (cross)
+        if (x === 20 || y === 15) map[y][x] = 1;
+        if ((x>=18 && x<=22) || (y>=13 && y<=17)) if (Math.random()>0.3) map[y][x]=1;
+        // River
+        if (x >= 8 && x <= 10 && y > 3 && y < MAP_H-3) map[y][x] = 3;
+        // Bridge
+        if (x>=8 && x<=10 && y===15) map[y][x]=9;
+        // Trees
+        if ((x+y) % 7 === 0 && map[y][x]===0 && Math.random()>0.6) map[y][x]=4;
+        // Flowers
+        if (map[y][x]===0 && Math.random()>0.92) map[y][x]=5;
+        // Houses (simple blocks)
+        // North house
+        if (x>=16 && x<=24 && y>=4 && y<=8) {
+          if (y===4 || y===8 || x===16 || x===24) map[y][x]=6;
+          else if (y===5) map[y][x]=7;
+          else map[y][x]=6;
+        }
+        // South house
+        if (x>=16 && x<=24 && y>=22 && y<=26) {
+          if (y===22 || y===26 || x===16 || x===24) map[y][x]=6;
+          else if (y===23) map[y][x]=7;
+          else map[y][x]=6;
+        }
+        // West house
+        if (x>=3 && x<=7 && y>=12 && y<=18) {
+          if (x===3 || x===7 || y===12 || y===18) map[y][x]=6;
+          else if (y===13) map[y][x]=7;
+          else map[y][x]=6;
+        }
+        // East house
+        if (x>=33 && x<=37 && y>=12 && y<=18) {
+          if (x===33 || x===37 || y===12 || y===18) map[y][x]=6;
+          else if (y===13) map[y][x]=7;
+          else map[y][x]=6;
+        }
+        // Central fountain
+        if (x>=19 && x<=21 && y>=14 && y<=16) map[y][x]=8;
+      }
+    }
+    // Clear spawn area
+    for (let y=13; y<=17; y++) for (let x=18; x<=22; x++) if (map[y][x]!==8) map[y][x]=1;
+  }
+
+  // Solid tiles for collision
+  function isSolid(tx, ty) {
+    if (tx<0 || ty<0 || tx>=MAP_W || ty>=MAP_H) return true;
+    const t = map[ty][tx];
+    return t===2 || t===3 || t===4 || t===6 || t===7;
+  }
+
+  // ---------- Drawing helpers (pixel style) ----------
+  function drawTile(tx, ty, type) {
+    const px = tx*TILE - camera.x;
+    const py = ty*TILE - camera.y;
+    if (px < -TILE || py < -TILE || px > W || py > H) return;
+    
+    ctx.fillStyle = TILE_COLORS[type] || '#3a6a2a';
+    ctx.fillRect(px, py, TILE, TILE);
+    
+    // Details
+    if (type === 0) { // grass noise
+      ctx.fillStyle = '#4a7a3a';
+      if ((tx+ty)%3===0) ctx.fillRect(px+8,py+12,4,4);
+      if ((tx*3+ty)%5===0) ctx.fillRect(px+20,py+6,3,3);
+    } else if (type === 1) { // path stones
+      ctx.fillStyle = '#9a8a6a';
+      ctx.fillRect(px+4,py+4,10,8);
+      ctx.fillRect(px+16,py+16,10,8);
+    } else if (type === 3) { // water waves
+      ctx.fillStyle = '#3a6a9a';
+      ctx.fillRect(px, py+ (frame%40 <20 ? 8:16), TILE, 4);
+    } else if (type === 4) { // tree
+      ctx.fillStyle = '#2a5a1a';
+      ctx.beginPath(); ctx.arc(px+16, py+12, 14, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#5a3a1a';
+      ctx.fillRect(px+12, py+20, 8, 12);
+    } else if (type === 5) { // flowers
+      ctx.fillStyle = '#e05080';
+      ctx.beginPath(); ctx.arc(px+10,py+10,3,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#e0c040';
+      ctx.beginPath(); ctx.arc(px+22,py+18,3,0,Math.PI*2); ctx.fill();
+    } else if (type === 7) { // roof tiles
+      ctx.fillStyle = '#6a2a1a';
+      for (let i=0;i<4;i++) ctx.fillRect(px+i*8, py+4, 6, 6);
+    } else if (type === 8) { // fountain
+      ctx.fillStyle = '#6a9aba';
+      ctx.beginPath(); ctx.arc(px+16,py+16,12,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#8abada';
+      ctx.beginPath(); ctx.arc(px+16,py+16,6,0,Math.PI*2); ctx.fill();
+    }
+  }
+
+  function drawCharacter(p, isAlly=false) {
+    const px = p.x - camera.x;
+    const py = p.y - camera.y;
+    if (px < -40 || py < -40 || px > W+40 || py > H+40) return;
+    
+    const c = CHARS[p.charType];
+    const bob = Math.sin(frame*0.15 + p.id) * 1.5;
+    
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.ellipse(px, py+14, 10, 4, 0, 0, Math.PI*2); ctx.fill();
+    
+    // Body
+    ctx.fillStyle = c.color;
+    // Legs
+    ctx.fillRect(px-6, py+2+bob, 5, 10);
+    ctx.fillRect(px+1, py+2+bob, 5, 10);
+    // Torso
+    ctx.fillRect(px-7, py-10+bob, 14, 14);
+    // Head
+    ctx.fillStyle = '#f0d0a0';
+    ctx.beginPath(); ctx.arc(px, py-16+bob, 7, 0, Math.PI*2); ctx.fill();
+    // Hair / hat
+    if (p.charType === 0) { // Kael green hat
+      ctx.fillStyle = '#2a6a2a';
+      ctx.beginPath(); ctx.arc(px, py-20+bob, 8, Math.PI, 0); ctx.fill();
+      ctx.fillRect(px-2, py-28+bob, 4, 8);
+    } else if (p.charType === 1) { // Lyra long hair
+      ctx.fillStyle = '#e0c060';
+      ctx.fillRect(px-8, py-18+bob, 16, 6);
+      ctx.fillRect(px-9, py-12+bob, 4, 10);
+      ctx.fillRect(px+5, py-12+bob, 4, 10);
+    } else { // Riven helmet
+      ctx.fillStyle = '#3a4a6a';
+      ctx.beginPath(); ctx.arc(px, py-16+bob, 8, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#6a8aba';
+      ctx.fillRect(px-6, py-20+bob, 12, 4);
+    }
+    
+    // Eyes
+    ctx.fillStyle = '#1a1020';
+    ctx.fillRect(px-4, py-18+bob, 2, 2);
+    ctx.fillRect(px+2, py-18+bob, 2, 2);
+    
+    // Weapon
+    if (p.attacking && p.attackFrame < 8) {
+      ctx.save();
+      ctx.translate(px, py-4);
+      const ang = p.facing === 1 ? -0.8 + p.attackFrame*0.2 : 0.8 - p.attackFrame*0.2;
+      ctx.rotate(ang);
+      if (p.charType === 1) { // staff
+        ctx.fillStyle = '#c0a060';
+        ctx.fillRect(0, -4, 28, 3);
+        ctx.fillStyle = '#e0a0ff';
+        ctx.beginPath(); ctx.arc(28, -2, 5, 0, Math.PI*2); ctx.fill();
+      } else if (p.charType === 2) { // axe
+        ctx.fillStyle = '#8a7a5a';
+        ctx.fillRect(0, -3, 22, 4);
+        ctx.fillStyle = '#6a8aaa';
+        ctx.fillRect(18, -10, 8, 16);
+      } else { // sword
+        ctx.fillStyle = '#d0d0e0';
+        ctx.fillRect(0, -2, 26, 3);
+        ctx.fillStyle = '#e8c070';
+        ctx.fillRect(0, -4, 4, 7);
+      }
+      ctx.restore();
+    } else {
+      // idle weapon
+      if (p.charType === 1) {
+        ctx.fillStyle = '#c0a060';
+        ctx.fillRect(px+8, py-18+bob, 3, 22);
+        ctx.fillStyle = '#e0a0ff';
+        ctx.beginPath(); ctx.arc(px+9.5, py-20+bob, 4, 0, Math.PI*2); ctx.fill();
+      } else if (p.charType === 2) {
+        ctx.fillStyle = '#6a8aaa';
+        ctx.fillRect(px+9, py-8+bob, 6, 14);
+        ctx.fillStyle = '#8a7a5a';
+        ctx.fillRect(px+10, py+4+bob, 4, 8);
+      } else {
+        ctx.fillStyle = '#d0d0e0';
+        ctx.fillRect(px+8, py-6+bob, 3, 16);
+      }
+    }
+    
+    // Ally indicator
+    if (isAlly) {
+      ctx.fillStyle = '#60e080';
+      ctx.fillRect(px-4, py-32+bob, 8, 3);
+    }
+    
+    // Direction facing (for multi)
+    p.drawX = px; p.drawY = py;
+  }
+
+  function drawEnemy(e) {
+    const px = e.x - camera.x;
+    const py = e.y - camera.y;
+    if (px < -50 || py < -50 || px > W+50 || py > H+50) return;
+    
+    const bob = Math.sin(frame*0.2 + e.id) * 2;
+    
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.ellipse(px, py+12, 12, 5, 0, 0, Math.PI*2); ctx.fill();
+    
+    if (e.type === 'slime') {
+      ctx.fillStyle = e.hitFlash > 0 ? '#ffffff' : '#4a9a3a';
+      ctx.beginPath();
+      ctx.ellipse(px, py+bob, 14, 11, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = '#1a2a1a';
+      ctx.beginPath(); ctx.arc(px-5, py-2+bob, 3, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(px+5, py-2+bob, 3, 0, Math.PI*2); ctx.fill();
+    } else if (e.type === 'spiker') {
+      ctx.fillStyle = e.hitFlash > 0 ? '#ffffff' : '#c04030';
+      ctx.beginPath(); ctx.arc(px, py+bob, 12, 0, Math.PI*2); ctx.fill();
+      // spikes
+      ctx.fillStyle = '#e08060';
+      for (let i=0;i<6;i++) {
+        const a = i/6 * Math.PI*2 + frame*0.05;
+        ctx.beginPath();
+        ctx.moveTo(px + Math.cos(a)*10, py+bob + Math.sin(a)*10);
+        ctx.lineTo(px + Math.cos(a)*18, py+bob + Math.sin(a)*18);
+        ctx.lineTo(px + Math.cos(a+0.3)*10, py+bob + Math.sin(a+0.3)*10);
+        ctx.fill();
+      }
+    } else if (e.type === 'bat') {
+      ctx.fillStyle = e.hitFlash > 0 ? '#ffffff' : '#4a4a9a';
+      // body
+      ctx.beginPath(); ctx.ellipse(px, py+bob, 8, 6, 0, 0, Math.PI*2); ctx.fill();
+      // wings
+      const wing = Math.sin(frame*0.3)*8;
+      ctx.beginPath();
+      ctx.moveTo(px-6, py+bob);
+      ctx.quadraticCurveTo(px-18, py-8+bob+wing, px-10, py+4+bob);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(px+6, py+bob);
+      ctx.quadraticCurveTo(px+18, py-8+bob-wing, px+10, py+4+bob);
+      ctx.fill();
+    } else if (e.type === 'boss') {
+      // Shadow Knight
+      const s = 1.6;
+      ctx.fillStyle = e.hitFlash > 0 ? '#ffffff' : '#2a1a3a';
+      // body
+      ctx.fillRect(px-14*s, py-20*s +bob, 28*s, 30*s);
+      // head
+      ctx.fillStyle = e.hitFlash > 0 ? '#ffffff' : '#1a1020';
+      ctx.beginPath(); ctx.arc(px, py-28*s +bob, 12*s, 0, Math.PI*2); ctx.fill();
+      // glowing eyes
+      ctx.fillStyle = '#ff3030';
+      ctx.beginPath(); ctx.arc(px-6*s, py-30*s +bob, 3*s, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(px+6*s, py-30*s +bob, 3*s, 0, Math.PI*2); ctx.fill();
+      // cape
+      ctx.fillStyle = '#4a1a5a';
+      ctx.beginPath();
+      ctx.moveTo(px-14*s, py-10*s +bob);
+      ctx.lineTo(px-22*s, py+20*s +bob);
+      ctx.lineTo(px-8*s, py+16*s +bob);
+      ctx.fill();
+      // sword
+      ctx.fillStyle = '#8a8aaa';
+      ctx.fillRect(px+16*s, py-30*s +bob, 5*s, 40*s);
+      ctx.fillStyle = '#c0c0e0';
+      ctx.fillRect(px+14*s, py-34*s +bob, 9*s, 6*s);
+      // health bar
+      const barW = 60;
+      ctx.fillStyle = '#1a1020';
+      ctx.fillRect(px - barW/2, py - 50*s + bob, barW, 6);
+      ctx.fillStyle = '#c03030';
+      ctx.fillRect(px - barW/2, py - 50*s + bob, barW * (e.hp / e.maxHp), 6);
+    }
+  }
+
+  function drawProjectile(pr) {
+    const px = pr.x - camera.x;
+    const py = pr.y - camera.y;
+    ctx.fillStyle = pr.color || '#e0a0ff';
+    ctx.shadowBlur = 8; ctx.shadowColor = pr.color || '#e0a0ff';
+    ctx.beginPath(); ctx.arc(px, py, 6, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  function drawParticle(p) {
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x - camera.x - 2, p.y - camera.y - 2, 4, 4);
+    ctx.globalAlpha = 1;
+  }
+
+  function drawNPC(n) {
+    const px = n.x - camera.x;
+    const py = n.y - camera.y;
+    // simple villager
+    ctx.fillStyle = n.color || '#8a6a4a';
+    ctx.fillRect(px-6, py-8, 12, 14);
+    ctx.fillStyle = '#f0d0a0';
+    ctx.beginPath(); ctx.arc(px, py-12, 6, 0, Math.PI*2); ctx.fill();
+    // ! bubble if near
+    if (n.showBubble) {
+      ctx.fillStyle = '#f0e8d0';
+      ctx.fillRect(px-4, py-28, 8, 10);
+      ctx.fillStyle = '#1a1020';
+      ctx.font = '10px sans-serif';
+      ctx.fillText('!', px-2, py-20);
+    }
+  }
+
+  // ---------- Entities ----------
+  function createPlayer(charType, id, x, y, isHuman=true) {
+    const c = CHARS[charType];
+    return {
+      id, charType, x, y,
+      vx:0, vy:0,
+      hp: c.hp, maxHp: c.hp,
+      speed: c.speed,
+      facing: 1,
+      attacking: false,
+      attackFrame: 0,
+      attackCd: 0,
+      invuln: 0,
+      isHuman,
+      killCount: 0
+    };
+  }
+
+  function createEnemy(type, x, y) {
+    const base = {
+      id: Math.random(),
+      type, x, y,
+      vx:0, vy:0,
+      hitFlash: 0,
+      attackCd: 0,
+      aiTimer: 0
+    };
+    if (type === 'slime') { base.hp=3; base.maxHp=3; base.speed=0.9; base.dmg=1; base.r=12; }
+    else if (type === 'spiker') { base.hp=5; base.maxHp=5; base.speed=1.1; base.dmg=2; base.r=14; }
+    else if (type === 'bat') { base.hp=2; base.maxHp=2; base.speed=1.8; base.dmg=1; base.r=10; }
+    else if (type === 'boss') { base.hp=80; base.maxHp=80; base.speed=1.3; base.dmg=3; base.r=28; }
+    return base;
+  }
+
+  function spawnParticles(x, y, color, count=8) {
+    for (let i=0; i<count; i++) {
+      particles.push({
+        x, y,
+        vx: (Math.random()-0.5)*4,
+        vy: (Math.random()-0.5)*4 - 1,
+        life: 1,
+        color
+      });
+    }
+  }
+
+  // ---------- Game logic ----------
+  function startGame() {
+    buildMap();
+    players = [];
+    allies = [];
+    enemies = [];
+    projectiles = [];
+    particles = [];
+    kills = 0;
+    bossSpawned = false;
+    bossDefeated = false;
+    spawnTimer = 0;
+    
+    // Main player
+    const p1 = createPlayer(selectedChar, 0, 20*TILE + 16, 15*TILE + 16, true);
+    players.push(p1);
+    
+    if (gameMode === 'coop' || gameMode === 'pvp') {
+      // Second human player - pick a different char if possible
+      let char2 = (selectedChar + 1) % 3;
+      const p2 = createPlayer(char2, 1, 20*TILE + 40, 15*TILE + 16, true);
+      players.push(p2);
+    }
+    
+    // NPCs
+    npcs = [
+      {x: 14*TILE, y: 10*TILE, color:'#7a5a3a', name:'Old Man', text:'Monsters have been pouring from the woods... Please help us!', showBubble:false},
+      {x: 26*TILE, y: 20*TILE, color:'#9a6a5a', name:'Merchant', text:'I have no weapons left... Take care out there, hero!', showBubble:false},
+      {x: 12*TILE, y: 22*TILE, color:'#5a7a9a', name:'Child', text:'I saw a huge dark knight near the fountain last night!', showBubble:false}
+    ];
+    
+    // Initial enemies
+    for (let i=0; i<6; i++) {
+      spawnEnemyRandom();
+    }
+    
+    state = 'play';
+    titleScreen.classList.add('hidden');
+    selectScreen.classList.add('hidden');
+    gameOverScreen.classList.add('hidden');
+    victoryScreen.classList.add('hidden');
+    pauseScreen.classList.add('hidden');
+    hud.style.display = 'flex';
+    controlsHint.style.display = 'block';
+    updateHUD();
+  }
+
+  function spawnEnemyRandom() {
+    let x, y, tries=0;
+    do {
+      x = (5 + Math.random()*30) * TILE;
+      y = (5 + Math.random()*20) * TILE;
+      tries++;
+    } while (tries < 20 && (isSolid(Math.floor(x/TILE), Math.floor(y/TILE)) || distToPlayers(x,y) < 120));
+    
+    const types = ['slime','slime','spiker','bat'];
+    const t = types[Math.floor(Math.random()*types.length)];
+    enemies.push(createEnemy(t, x, y));
+  }
+
+  function distToPlayers(x,y) {
+    let min = 9999;
+    players.forEach(p => {
+      const d = Math.hypot(p.x-x, p.y-y);
+      if (d < min) min = d;
+    });
+    allies.forEach(a => {
+      const d = Math.hypot(a.x-x, a.y-y);
+      if (d < min) min = d;
+    });
+    return min;
+  }
+
+  function updateHUD() {
+    if (players.length === 0) return;
+    const p = players[0];
+    heartsEl.innerHTML = '';
+    for (let i=0; i<p.maxHp; i++) {
+      const h = document.createElement('div');
+      h.className = 'heart' + (i >= p.hp ? ' empty' : '');
+      heartsEl.appendChild(h);
+    }
+    playerNameEl.textContent = CHARS[p.charType].name;
+    killCountEl.textContent = kills;
+    allyCountEl.textContent = allies.length;
+    modeLabel.textContent = gameMode === 'solo' ? 'Solo + AI' : gameMode === 'coop' ? 'Co-op' : 'Duel';
+  }
+
+  function showDialog(name, text) {
+    dialogName.textContent = name;
+    dialogText.textContent = text;
+    dialogBox.classList.add('show');
+    dialogTimer = 180; // frames
+  }
+
+  function attack(p) {
+    if (p.attackCd > 0 || p.attacking) return;
+    p.attacking = true;
+    p.attackFrame = 0;
+    p.attackCd = p.charType === 1 ? 25 : 18;
+    
+    // simple beep
+    playBeep(p.charType === 1 ? 600 : 300, 0.08);
+    
+    if (p.charType === 1) {
+      // projectile
+      const dir = p.facing;
+      projectiles.push({
+        x: p.x + dir*12,
+        y: p.y - 4,
+        vx: dir * 6,
+        vy: 0,
+        life: 40,
+        dmg: CHARS[1].dmg,
+        owner: p.id,
+        color: '#e0a0ff'
+      });
+    } else {
+      // melee hitbox check next frames
+    }
+  }
+
+  function doMeleeHit(p) {
+    const reach = p.charType === 2 ? 36 : 30;
+    const hx = p.x + p.facing * (reach/2);
+    const hy = p.y;
+    
+    // hit enemies
+    enemies.forEach(e => {
+      if (e.hp <= 0) return;
+      const d = Math.hypot(e.x - hx, e.y - hy);
+      if (d < reach/2 + e.r) {
+        damageEnemy(e, CHARS[p.charType].dmg, p);
+      }
+    });
+    
+    // PvP or friendly?
+    if (gameMode === 'pvp') {
+      players.forEach(other => {
+        if (other.id === p.id || other.invuln > 0) return;
+        const d = Math.hypot(other.x - hx, other.y - hy);
+        if (d < reach/2 + 12) {
+          damagePlayer(other, CHARS[p.charType].dmg);
+        }
+      });
+    }
+    
+    // also hit allies only in pvp? no, allies are friends
+  }
+
+  function damageEnemy(e, dmg, attacker) {
+    if (e.hitFlash > 0) return;
+    e.hp -= dmg;
+    e.hitFlash = 8;
+    spawnParticles(e.x, e.y, '#e0c070', 6);
+    playBeep(200, 0.05);
+    
+    // knockback
+    if (attacker) {
+      const dx = e.x - attacker.x;
+      const dy = e.y - attacker.y;
+      const len = Math.hypot(dx,dy) || 1;
+      e.x += (dx/len) * 8;
+      e.y += (dy/len) * 8;
+    }
+    
+    if (e.hp <= 0) {
+      kills++;
+      spawnParticles(e.x, e.y, e.type==='boss' ? '#ff4040' : '#60c040', 16);
+      playBeep(120, 0.15);
+      if (e.type === 'boss') {
+        bossDefeated = true;
+        setTimeout(() => {
+          state = 'victory';
+          victoryScreen.classList.remove('hidden');
+          document.getElementById('vicKills').textContent = kills;
+          hud.style.display = 'none';
+        }, 800);
+      }
+    }
+  }
+
+  function damagePlayer(p, dmg) {
+    if (p.invuln > 0) return;
+    p.hp -= dmg;
+    p.invuln = 40;
+    spawnParticles(p.x, p.y, '#ff6060', 8);
+    playBeep(80, 0.1);
+    updateHUD();
+    if (p.hp <= 0) {
+      // check if all human players dead
+      const humansAlive = players.filter(pl => pl.isHuman && pl.hp > 0).length;
+      if (humansAlive === 0) {
+        state = 'gameover';
+        gameOverScreen.classList.remove('hidden');
+        document.getElementById('goKills').textContent = kills;
+        hud.style.display = 'none';
+      }
+    }
+  }
+
+  function summonAlly() {
+    if (gameMode !== 'solo') return;
+    if (allies.length >= 2) return; // max 2 allies
+    // summon the other characters
+    const used = new Set([players[0].charType, ...allies.map(a=>a.charType)]);
+    let next = 0;
+    while (used.has(next) && next < 3) next++;
+    if (next >= 3) return;
+    
+    const a = createPlayer(next, 10+allies.length, players[0].x + 30, players[0].y, false);
+    a.hp = CHARS[next].hp;
+    allies.push(a);
+    playBeep(500, 0.1);
+    updateHUD();
+    showDialog('System', CHARS[next].name + ' has joined the fight!');
+  }
+
+  // ---------- Audio (tiny beeps) ----------
+  let audioCtx;
+  function playBeep(freq, dur) {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.frequency.value = freq;
+      osc.type = 'square';
+      gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+      osc.start(); osc.stop(audioCtx.currentTime + dur);
+    } catch(e) {}
+  }
+
+  // ---------- Update loop ----------
+  function update(dt) {
+    if (state !== 'play') return;
+    frame++;
+    
+    // Dialog timer
+    if (dialogTimer > 0) {
+      dialogTimer--;
+      if (dialogTimer <= 0) dialogBox.classList.remove('show');
+    }
+    
+    // Input for players
+    players.forEach((p, idx) => {
+      if (!p.isHuman || p.hp <= 0) return;
+      
+      let mx=0, my=0;
+      if (idx === 0) {
+        if (keys['ArrowUp'] || keys['w'] || keys['W']) my = -1;
+        if (keys['ArrowDown'] || keys['s'] || keys['S']) my = 1;
+        if (keys['ArrowLeft'] || keys['a'] || keys['A']) mx = -1;
+        if (keys['ArrowRight'] || keys['d'] || keys['D']) mx = 1;
+        if (keys['z'] || keys['Z'] || keys[' '] || keys['Enter']) attack(p);
+      } else {
+        // player 2 - already using WASD shared? Wait, conflict.
+        // For coop: P1 arrows only, P2 WASD
+        // I need to separate.
+        // Fix: re-bind
+      }
+      
+      // Better input separation
+      // P1: Arrows + Z/Space
+      // P2: WASD + F
+    });
+    
+    // Re-do input cleanly
+    handlePlayerInput();
+    
+    // Update players
+    [...players, ...allies].forEach(p => {
+      if (p.hp <= 0) return;
+      
+      // AI for allies
+      if (!p.isHuman) {
+        updateAllyAI(p);
+      }
+      
+      // Movement + collision
+      let speed = p.speed;
+      if (p.attacking) speed *= 0.4;
+      
+      let nx = p.x + p.vx * speed;
+      let ny = p.y + p.vy * speed;
+      
+      // tile collision (simple AABB)
+      const r = 10;
+      if (!isSolid(Math.floor((nx-r)/TILE), Math.floor(p.y/TILE)) &&
+          !isSolid(Math.floor((nx+r)/TILE), Math.floor(p.y/TILE))) {
+        p.x = nx;
+      }
+      if (!isSolid(Math.floor(p.x/TILE), Math.floor((ny-r)/TILE)) &&
+          !isSolid(Math.floor(p.x/TILE), Math.floor((ny+r)/TILE))) {
+        p.y = ny;
+      }
+      
+      // attack anim
+      if (p.attacking) {
+        p.attackFrame++;
+        if (p.attackFrame === 4) doMeleeHit(p);
+        if (p.attackFrame > 12) p.attacking = false;
+      }
+      if (p.attackCd > 0) p.attackCd--;
+      if (p.invuln > 0) p.invuln--;
+      
+      // facing
+      if (p.vx > 0) p.facing = 1;
+      if (p.vx < 0) p.facing = -1;
+    });
+    
+    // Enemies AI
+    enemies.forEach(e => {
+      if (e.hp <= 0) return;
+      if (e.hitFlash > 0) e.hitFlash--;
+      
+      // find nearest target (player or ally)
+      let target = null, minD = 9999;
+      [...players, ...allies].forEach(p => {
+        if (p.hp <= 0) return;
+        const d = Math.hypot(p.x - e.x, p.y - e.y);
+        if (d < minD) { minD = d; target = p; }
+      });
+      
+      if (target && minD < 280) {
+        // chase
+        const dx = target.x - e.x;
+        const dy = target.y - e.y;
+        const len = Math.hypot(dx,dy) || 1;
+        e.vx = (dx / len) * e.speed;
+        e.vy = (dy / len) * e.speed;
+        
+        // attack if close
+        if (minD < e.r + 16 && e.attackCd <= 0) {
+          damagePlayer(target, e.dmg);
+          e.attackCd = 40;
+        }
+      } else {
+        // wander
+        e.aiTimer--;
+        if (e.aiTimer <= 0) {
+          e.vx = (Math.random()-0.5) * e.speed;
+          e.vy = (Math.random()-0.5) * e.speed;
+          e.aiTimer = 40 + Math.random()*60;
+        }
+      }
+      
+      if (e.attackCd > 0) e.attackCd--;
+      
+      // move with collision
+      let nx = e.x + e.vx;
+      let ny = e.y + e.vy;
+      if (!isSolid(Math.floor(nx/TILE), Math.floor(e.y/TILE))) e.x = nx;
+      if (!isSolid(Math.floor(e.x/TILE), Math.floor(ny/TILE))) e.y = ny;
+      
+      // boss special: sometimes charge or spawn minions
+      if (e.type === 'boss' && frame % 180 === 0) {
+        // spawn a slime
+        enemies.push(createEnemy('slime', e.x + (Math.random()-0.5)*60, e.y + (Math.random()-0.5)*60));
+      }
+    });
+    
+    // remove dead
+    enemies = enemies.filter(e => e.hp > 0);
+    
+    // Projectiles
+    projectiles.forEach(pr => {
+      pr.x += pr.vx;
+      pr.y += pr.vy;
+      pr.life--;
+      
+      // hit enemies
+      enemies.forEach(e => {
+        if (e.hp <= 0) return;
+        if (Math.hypot(e.x - pr.x, e.y - pr.y) < e.r + 6) {
+          damageEnemy(e, pr.dmg, null);
+          pr.life = 0;
+        }
+      });
+      
+      // walls
+      if (isSolid(Math.floor(pr.x/TILE), Math.floor(pr.y/TILE))) pr.life = 0;
+    });
+    projectiles = projectiles.filter(pr => pr.life > 0);
+    
+    // Particles
+    particles.forEach(p => {
+      p.x += p.vx; p.y += p.vy;
+      p.vy += 0.1;
+      p.life -= 0.03;
+    });
+    particles = particles.filter(p => p.life > 0);
+    
+    // Spawn more monsters
+    spawnTimer++;
+    if (spawnTimer > 180 && enemies.length < 12 && !bossSpawned) {
+      spawnEnemyRandom();
+      spawnTimer = 0;
+    }
+    
+    // Boss trigger: after 15 kills or near fountain long enough
+    if (!bossSpawned && kills >= 12) {
+      bossSpawned = true;
+      const boss = createEnemy('boss', 20*TILE, 8*TILE);
+      enemies.push(boss);
+      showDialog('???', 'The Shadow Knight awakens! All heroes, stand together!');
+      playBeep(100, 0.3);
+    }
+    
+    // NPC interaction
+    npcs.forEach(n => {
+      n.showBubble = false;
+      players.forEach(p => {
+        if (p.hp > 0 && Math.hypot(p.x - n.x, p.y - n.y) < 48) {
+          n.showBubble = true;
+          if ((keys['e'] || keys['E']) && (!window._talkCd || Date.now() - window._talkCd > 800)) {
+            showDialog(n.name, n.text);
+            window._talkCd = Date.now();
+          }
+        }
+      });
+    });
+    
+    // Camera: follow main player or average
+    if (players.length > 0 && players[0].hp > 0) {
+      const targetX = players[0].x - W/2;
+      const targetY = players[0].y - H/2;
+      camera.x += (targetX - camera.x) * 0.1;
+      camera.y += (targetY - camera.y) * 0.1;
+      // clamp
+      camera.x = Math.max(0, Math.min(camera.x, MAP_W*TILE - W));
+      camera.y = Math.max(0, Math.min(camera.y, MAP_H*TILE - H));
+    }
+  }
+
+  function handlePlayerInput() {
+    // Reset velocities
+    players.forEach(p => { p.vx=0; p.vy=0; });
+    
+    // Player 1: Arrows OR WASD (if solo) + Z / Space / Enter
+    if (players[0] && players[0].isHuman && players[0].hp > 0) {
+      const p = players[0];
+      // Arrows always for P1
+      if (keys['ArrowUp']) p.vy = -1;
+      if (keys['ArrowDown']) p.vy = 1;
+      if (keys['ArrowLeft']) p.vx = -1;
+      if (keys['ArrowRight']) p.vx = 1;
+      
+      // In solo, also allow WASD for comfort
+      if (gameMode === 'solo') {
+        if (keys['w'] || keys['W']) p.vy = -1;
+        if (keys['s'] || keys['S']) p.vy = 1;
+        if (keys['a'] || keys['A']) p.vx = -1;
+        if (keys['d'] || keys['D']) p.vx = 1;
+      }
+      
+      // normalize diagonal
+      if (p.vx !== 0 && p.vy !== 0) { p.vx *= 0.707; p.vy *= 0.707; }
+      
+      if ((keys['z'] || keys['Z'] || keys[' '] || keys['Enter']) && !p.attacking) attack(p);
+    }
+    
+    // Player 2: WASD + F (coop / pvp only)
+    if (players[1] && players[1].isHuman && players[1].hp > 0) {
+      const p = players[1];
+      if (keys['w'] || keys['W']) p.vy = -1;
+      if (keys['s'] || keys['S']) p.vy = 1;
+      if (keys['a'] || keys['A']) p.vx = -1;
+      if (keys['d'] || keys['D']) p.vx = 1;
+      if (p.vx !== 0 && p.vy !== 0) { p.vx *= 0.707; p.vy *= 0.707; }
+      
+      if ((keys['f'] || keys['F']) && !p.attacking) attack(p);
+    }
+    
+    // Summon Ally (solo only) - C key
+    if ((keys['c'] || keys['C']) && gameMode === 'solo') {
+      if (!window._summonCd || Date.now() - window._summonCd > 1500) {
+        summonAlly();
+        window._summonCd = Date.now();
+      }
+    }
+    
+    // Talk to NPC - E key
+    if (keys['e'] || keys['E']) {
+      // already handled in update via showBubble
+    }
+  }
+
+  function updateAllyAI(a) {
+    // Follow nearest player and attack nearby enemies
+    let targetP = players[0];
+    let nearestE = null, minD=999;
+    enemies.forEach(e => {
+      if (e.hp<=0) return;
+      const d = Math.hypot(e.x-a.x, e.y-a.y);
+      if (d < minD) { minD=d; nearestE=e; }
+    });
+    
+    if (nearestE && minD < 100) {
+      // attack
+      const dx = nearestE.x - a.x;
+      const dy = nearestE.y - a.y;
+      const len = Math.hypot(dx,dy)||1;
+      a.vx = dx/len;
+      a.vy = dy/len;
+      if (minD < 40 && a.attackCd <= 0) attack(a);
+    } else if (targetP) {
+      // follow
+      const dx = targetP.x - a.x;
+      const dy = targetP.y - a.y;
+      const d = Math.hypot(dx,dy);
+      if (d > 50) {
+        a.vx = dx / d;
+        a.vy = dy / d;
+      } else {
+        a.vx = 0; a.vy = 0;
+      }
+    }
+  }
+
+  // ---------- Draw ----------
+  function draw() {
+    ctx.fillStyle = '#1a2a1a';
+    ctx.fillRect(0,0,W,H);
+    
+    // Tiles
+    const startTX = Math.floor(camera.x / TILE);
+    const startTY = Math.floor(camera.y / TILE);
+    const endTX = startTX + Math.ceil(W/TILE) + 1;
+    const endTY = startTY + Math.ceil(H/TILE) + 1;
+    
+    for (let ty = startTY; ty < endTY; ty++) {
+      for (let tx = startTX; tx < endTX; tx++) {
+        if (ty>=0 && ty<MAP_H && tx>=0 && tx<MAP_W) {
+          drawTile(tx, ty, map[ty][tx]);
+        }
+      }
+    }
+    
+    // NPCs
+    npcs.forEach(drawNPC);
+    
+    // Entities (sort by y for depth)
+    const all = [];
+    players.forEach(p => { if (p.hp>0) all.push({type:'player', e:p, y:p.y}); });
+    allies.forEach(a => { if (a.hp>0) all.push({type:'ally', e:a, y:a.y}); });
+    enemies.forEach(e => { if (e.hp>0) all.push({type:'enemy', e:e, y:e.y}); });
+    all.sort((a,b) => a.y - b.y);
+    
+    all.forEach(item => {
+      if (item.type === 'player') drawCharacter(item.e, false);
+      else if (item.type === 'ally') drawCharacter(item.e, true);
+      else drawEnemy(item.e);
+    });
+    
+    projectiles.forEach(drawProjectile);
+    particles.forEach(drawParticle);
+    
+    // Boss warning
+    if (bossSpawned && !bossDefeated) {
+      ctx.fillStyle = 'rgba(180,30,30,0.7)';
+      ctx.font = 'bold 14px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText('⚠ SHADOW KNIGHT ⚠', W/2, 28);
+    }
+  }
+
+  // ---------- Main loop ----------
+  function loop(ts) {
+    const dt = Math.min(50, ts - lastTime);
+    lastTime = ts;
+    
+    update(dt);
+    draw();
+    
+    requestAnimationFrame(loop);
+  }
+
+  // ---------- Input ----------
+  window.addEventListener('keydown', e => {
+    keys[e.key] = true;
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+    
+    if (e.key === 'p' || e.key === 'P') {
+      if (state === 'play') {
+        state = 'pause';
+        pauseScreen.classList.remove('hidden');
+      } else if (state === 'pause') {
+        state = 'play';
+        pauseScreen.classList.add('hidden');
+      }
+    }
+  });
+  window.addEventListener('keyup', e => { keys[e.key] = false; });
+
+  // ---------- UI buttons ----------
+  document.getElementById('startBtn').onclick = () => {
+    titleScreen.classList.add('hidden');
+    selectScreen.classList.remove('hidden');
+  };
+  
+  // Char select
+  document.querySelectorAll('.char-card').forEach(card => {
+    card.onclick = () => {
+      document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      selectedChar = parseInt(card.dataset.char);
+      document.getElementById('playBtn').disabled = false;
+      document.getElementById('playBtn').style.opacity = '1';
+      // draw mini icons
+      drawCharIcon(0);
+      drawCharIcon(1);
+      drawCharIcon(2);
+    };
+  });
+  
+  function drawCharIcon(idx) {
+    const el = document.getElementById('icon'+idx);
+    // simple canvas icon
+    const c = document.createElement('canvas');
+    c.width = 64; c.height = 64;
+    const cx = c.getContext('2d');
+    cx.fillStyle = '#0a0810';
+    cx.fillRect(0,0,64,64);
+    // mini body
+    const col = CHARS[idx].color;
+    cx.fillStyle = col;
+    cx.fillRect(22, 28, 20, 22);
+    cx.fillStyle = '#f0d0a0';
+    cx.beginPath(); cx.arc(32, 22, 10, 0, Math.PI*2); cx.fill();
+    if (idx===0) {
+      cx.fillStyle = '#2a6a2a';
+      cx.beginPath(); cx.arc(32, 16, 11, Math.PI, 0); cx.fill();
+    } else if (idx===1) {
+      cx.fillStyle = '#e0c060';
+      cx.fillRect(20, 18, 24, 6);
+    } else {
+      cx.fillStyle = '#3a4a6a';
+      cx.beginPath(); cx.arc(32, 20, 11, 0, Math.PI*2); cx.fill();
+    }
+    el.innerHTML = '';
+    el.appendChild(c);
+  }
+  
+  // Modes
+  document.getElementById('modeSolo').onclick = () => {
+    gameMode = 'solo';
+    document.querySelectorAll('.mode-btns button').forEach(b=>b.classList.remove('active'));
+    document.getElementById('modeSolo').classList.add('active');
+  };
+  document.getElementById('modeCoop').onclick = () => {
+    gameMode = 'coop';
+    document.querySelectorAll('.mode-btns button').forEach(b=>b.classList.remove('active'));
+    document.getElementById('modeCoop').classList.add('active');
+  };
+  document.getElementById('modePvp').onclick = () => {
+    gameMode = 'pvp';
+    document.querySelectorAll('.mode-btns button').forEach(b=>b.classList.remove('active'));
+    document.getElementById('modePvp').classList.add('active');
+  };
+  
+  document.getElementById('playBtn').onclick = () => {
+    if (selectedChar < 0) return;
+    startGame();
+  };
+  
+  document.getElementById('resumeBtn').onclick = () => {
+    state = 'play';
+    pauseScreen.classList.add('hidden');
+  };
+  document.getElementById('quitBtn').onclick = () => location.reload();
+  document.getElementById('retryBtn').onclick = () => {
+    gameOverScreen.classList.add('hidden');
+    startGame();
+  };
+  document.getElementById('titleBtn').onclick = () => location.reload();
+  document.getElementById('vicTitleBtn').onclick = () => location.reload();
+  
+  // Init icons
+  drawCharIcon(0); drawCharIcon(1); drawCharIcon(2);
+  // Prepare the town before the first title-screen animation frame.
+  // startGame() rebuilds it when a quest begins.
+  buildMap();
+  
+  // Start loop
+  requestAnimationFrame(loop);
+  
+  // Focus for keys
+  window.focus();
+  canvas.tabIndex = 1;
+  canvas.focus();
+})();
+</script>
+</body>
+</html>
