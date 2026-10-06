@@ -239,11 +239,34 @@
     return Math.max(atk.range * (atk.power ? 1.4 : 1), visibleContact);
   }
 
+  // Coordinates are measured upward from the arena floor. A fighter's y is
+  // negative while airborne, so these regions make jumping and uppercuts use
+  // the visible vertical space rather than an x-only contact test.
+  function hurtRegion(fighter) {
+    const height = fighter.spriteH || 310;
+    return { top: fighter.y - height * 0.92, bottom: fighter.y - height * 0.04 };
+  }
+
+  function moveHitRegion(fighter) {
+    const height = fighter.spriteH || 310;
+    let top = 0.72, bottom = 0.26;
+    if (fighter.state === 'kick') { top = 0.58; bottom = 0.07; }
+    if (fighter.state === 'special') { top = 1.08; bottom = 0.22; }
+    return { top: fighter.y - height * top, bottom: fighter.y - height * bottom };
+  }
+
+  function verticalRegionsOverlap(hit, hurt) {
+    return hit.bottom >= hurt.top && hit.top <= hurt.bottom;
+  }
+
   function computeHit(atk, def) {
     if (atk.atkHit || def.inv > 0) return { hit: false, reason: 'already' };
     const dist = Math.abs(atk.x - def.x);
     if (dist > hitRange(atk, def)) return { hit: false, reason: 'range' };
     if (!facingOk(atk, def) && dist > 70) return { hit: false, reason: 'facing' };
+    const hitRegion = moveHitRegion(atk);
+    const defenderHurtRegion = hurtRegion(def);
+    if (!verticalRegionsOverlap(hitRegion, defenderHurtRegion)) return { hit: false, reason: 'vertical' };
 
     let dmg = 0, knock = 8, isUpper = false, move = atk.state;
     if (atk.state === 'punch') {
@@ -264,7 +287,7 @@
     if (blocked) dmg *= 0.2;
 
     return {
-      hit: true, blocked, dmg, knock, isUpper, move, dist,
+      hit: true, blocked, dmg, knock, isUpper, move, dist, hitRegion, defenderHurtRegion,
       atkEnergy: blocked ? 6 : 12,
       defEnergy: blocked ? 14 : 5
     };
@@ -305,12 +328,24 @@
     return hp > 70 ? 0 : hp > 45 ? 1 : hp > 25 ? 2 : 3;
   }
 
+  function advanceRoundTimer(timeLeft, accumulator, dt) {
+    const total = Math.max(0, accumulator || 0) + Math.max(0, dt || 0);
+    const elapsed = Math.floor(total);
+    const next = Math.max(0, timeLeft - elapsed);
+    return { timeLeft: next, accumulator: total - elapsed, timedOut: elapsed > 0 && next === 0 };
+  }
+
+  function resolveRound(first, second) {
+    if (first.hp === second.hp) return { type: 'draw' };
+    return first.hp > second.hp ? { type: 'winner', winner: first } : { type: 'winner', winner: second };
+  }
+
   return {
     CHAR, POSES, STATES,
     ATTACK_WINDUP, ATTACK_ACTIVE_END, ATTACK_RECOVER,
     clonePose, lerp, lerpPose, clamp, attackWeight,
     makeFighter, paletteFor, poseForState, getPose,
-    facingOk, hitRange, computeHit, applyHit,
-    powerDuration, speedFor, chance, damageLevelFromHp
+    facingOk, hitRange, hurtRegion, moveHitRegion, verticalRegionsOverlap, computeHit, applyHit,
+    powerDuration, speedFor, chance, damageLevelFromHp, advanceRoundTimer, resolveRound
   };
 });
