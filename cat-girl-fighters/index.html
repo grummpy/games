@@ -42,6 +42,7 @@ body{background:#010108;color:#eee;font-family:Rajdhani,system-ui,sans-serif;ove
 #overlay .sub{color:#999;margin-bottom:14px;font-size:14px}
 .row{display:flex;gap:24px;margin:10px 0;flex-wrap:wrap;justify-content:center}
 .card{width:210px;height:320px;border:3px solid #333;border-radius:12px;overflow:hidden;cursor:pointer;transition:.22s;position:relative;background:#0a0a14}
+.card{color:inherit;font:inherit;padding:0;text-align:inherit}
 .card:hover,.card.on{border-color:#0ff;box-shadow:0 0 28px #0ff8;transform:scale(1.04)}
 .card.ragna:hover,.card.ragna.on{border-color:#f0f;box-shadow:0 0 28px #f0f8}
 .card img{width:100%;height:100%;object-fit:cover;object-position:top}
@@ -59,12 +60,24 @@ body{background:#010108;color:#eee;font-family:Rajdhani,system-ui,sans-serif;ove
 #musicBtn:hover,#musicBtn:focus-visible{box-shadow:0 0 14px #0ff;outline:none}
 #skipCutscene{position:fixed;right:18px;top:18px;z-index:50;display:none;pointer-events:auto;padding:9px 14px;border:1px solid #f6c;border-radius:6px;background:rgba(15,0,18,.82);color:#ffd7ef;font:700 11px Orbitron,sans-serif;cursor:pointer}
 #skipCutscene:hover,#skipCutscene:focus-visible{box-shadow:0 0 16px #f0a;outline:none}
+#pauseBtn{position:fixed;left:12px;bottom:12px;z-index:45;pointer-events:auto;padding:8px 12px;border:1px solid #f0f;border-radius:6px;background:rgba(0,0,0,.72);color:#f6c;font:700 11px Orbitron,sans-serif;cursor:pointer}
+#accessControls{position:fixed;right:12px;bottom:48px;z-index:45;display:flex;gap:5px;align-items:center;pointer-events:auto;color:#cde;font:700 10px Orbitron,sans-serif}
+#accessControls button{padding:6px 8px;border:1px solid #88a;border-radius:5px;background:rgba(0,0,0,.72);color:#dff;font:700 10px Orbitron,sans-serif;cursor:pointer}
+button:focus-visible,.card:focus-visible{outline:3px solid #fff;outline-offset:3px;box-shadow:0 0 18px #0ff}
+body.reduced-effects *{scroll-behavior:auto!important}
 </style>
 </head>
 <body>
-<canvas id="c"></canvas>
+<canvas id="c" tabindex="0" aria-label="Cat Girl Fighters arena"></canvas>
 <audio id="battleMusic" src="neon-combat.m4a" preload="metadata" loop></audio>
 <button id="musicBtn" type="button" aria-pressed="false" onclick="toggleMusic()">MUSIC: OFF</button>
+<button id="pauseBtn" type="button" aria-pressed="false" onclick="togglePause()">PAUSE (P)</button>
+<div id="accessControls" role="group" aria-label="Visual controls">
+  <button type="button" id="zoomOut" aria-label="Zoom out" onclick="setZoom(-0.05)">ZOOM −</button>
+  <span id="zoomReadout" aria-live="polite">100%</span>
+  <button type="button" id="zoomIn" aria-label="Zoom in" onclick="setZoom(0.05)">ZOOM +</button>
+  <button type="button" id="reduceEffects" aria-pressed="false" onclick="toggleReducedEffects()">REDUCE FX</button>
+</div>
 <button id="skipCutscene" type="button" onclick="skipCutscene()">SKIP CUTSCENE</button>
 <div id="bloodV"></div>
 <div id="ui" style="display:none">
@@ -92,14 +105,14 @@ body{background:#010108;color:#eee;font-family:Rajdhani,system-ui,sans-serif;ove
   <div class="sub">NEON ARENA · NUDE · BLOOD · 2P · STAGES · SAVE / EXECUTE</div>
   <div style="color:#888;font-size:12px;margin-bottom:6px">SELECT YOUR FIGHTER — portraits stay; in the ring they fight as bodies</div>
   <div class="row">
-    <div class="card" id="c0" onclick="pick(0)">
+    <button type="button" class="card" id="c0" aria-pressed="false" onclick="pick(0)">
       <img src="game_sprites/shiroka_select.jpg" alt="Shiroka" onerror="this.src='game_sprites/shiroka_idle.jpg'">
       <div class="lbl"><strong style="color:#0ff">SHIROKA</strong><span>SILVER CLAW · SPEED</span></div>
-    </div>
-    <div class="card ragna" id="c1" onclick="pick(1)">
+    </button>
+    <button type="button" class="card ragna" id="c1" aria-pressed="false" onclick="pick(1)">
       <img src="game_sprites/ragna_select.jpg" alt="Ragna" onerror="this.src='game_sprites/ragna_idle.jpg'">
       <div class="lbl"><strong style="color:#f0f">RAGNA</strong><span>CRIMSON FANG · POWER</span></div>
-    </div>
+    </button>
   </div>
   <div style="margin:12px 0 4px;color:#888;font-size:12px">MODE</div>
   <div>
@@ -153,21 +166,30 @@ let player, enemy, stage = 1, mode = 1, selected = -1;
 let gameState = 'menu', timeLeft = 99, tAcc = 0, msgT = 0, shake = 0, hitstop = 0;
 let particles = [], keys = {}, pressed = new Set(), cinematic = null, bloodV = 0;
 let rain = [], cam = { x: 0, y: 0, z: 1, tx: 0, ty: 0, tz: 1 };
+let userZoom = 1;
+let reducedEffects = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const CHAR = C.CHAR;
 
+function interactiveTarget(target) {
+  return target && target.closest && target.closest('button, input, select, textarea, a');
+}
 window.addEventListener('keydown', e => {
+  if (interactiveTarget(e.target)) return;
   if (!e.repeat) pressed.add(e.code);
   keys[e.code] = true;
   if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
   if (!e.repeat && e.code === 'KeyP' && (gameState==='fight'||gameState==='pause')) togglePause();
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
-window.addEventListener('blur', () => { keys = {}; pressed.clear(); });
+window.addEventListener('blur', () => { keys = {}; pressed.clear(); pauseForFocusLoss(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { keys = {}; pressed.clear(); pauseForFocusLoss(); } });
 
 function pick(i) {
   selected = i;
   document.getElementById('c0').classList.toggle('on', i===0);
   document.getElementById('c1').classList.toggle('on', i===1);
+  document.getElementById('c0').setAttribute('aria-pressed', String(i===0));
+  document.getElementById('c1').setAttribute('aria-pressed', String(i===1));
   const b = document.getElementById('go');
   b.disabled = false;
   b.textContent = i===0 ? 'FIGHT AS SHIROKA' : 'FIGHT AS RAGNA';
@@ -176,6 +198,8 @@ function setMode(m) {
   mode = m;
   document.getElementById('m1').classList.toggle('on', m===1);
   document.getElementById('m2').classList.toggle('on', m===2);
+  document.getElementById('m1').setAttribute('aria-pressed', String(m===1));
+  document.getElementById('m2').setAttribute('aria-pressed', String(m===2));
   document.getElementById('ctrl').textContent = m===1
     ? 'WASD Move · J Claw · K Kick · L Block · SPACE Power · P Pause'
     : 'P1: WASD+JKL+SPACE  |  P2: Arrows + 1/2/3/0  |  P Pause';
@@ -184,7 +208,21 @@ function setStage(s) {
   stage = s;
   document.getElementById('s1').classList.toggle('on', s===1);
   document.getElementById('s2').classList.toggle('on', s===2);
+  document.getElementById('s1').setAttribute('aria-pressed', String(s===1));
+  document.getElementById('s2').setAttribute('aria-pressed', String(s===2));
 }
+function setZoom(delta) {
+  const previous = userZoom;
+  userZoom = Math.max(0.85, Math.min(1.15, userZoom + delta));
+  if (previous !== userZoom && gameState !== 'menu') cam.tz *= userZoom / previous;
+  document.getElementById('zoomReadout').textContent = Math.round(userZoom * 100) + '%';
+}
+function toggleReducedEffects() {
+  reducedEffects = !reducedEffects;
+  document.body.classList.toggle('reduced-effects', reducedEffects);
+  document.getElementById('reduceEffects').setAttribute('aria-pressed', String(reducedEffects));
+}
+function setShake(amount) { shake = reducedEffects ? Math.min(1, amount * 0.12) : amount; }
 function showMsg(t, sec=1.5) {
   const el = document.getElementById('msg');
   el.textContent = t; el.style.opacity = 1; msgT = sec;
@@ -331,7 +369,7 @@ function activatePower(f) {
   f.power = true; f.powerT = C.powerDuration(f.who); f.energy = 0;
   f.state = 'power'; f.st = 0; sfxPower();
   showMsg(f.who==='shiroka' ? 'SILVER FURY!' : 'CRIMSON RAGE!', 1.5);
-  shake = 12; cam.tz = 1.18;
+  setShake(12); cam.tz = 1.18;
   for (let i=0;i<40;i++) {
     particles.push({
       type: 'spark',
@@ -351,7 +389,7 @@ function tryHit(atk, def) {
   const impactX = def.x - atk.facing * 18;
   const impactY = H*0.55 + def.y;
   if (result.blocked) {
-    sfxBlock(); shake = 4;
+    sfxBlock(); setShake(4);
     spawnRing(impactX, impactY, '#fff', 22);
     spawnSparks(impactX, impactY, '#dde', 6);
     if (def.hp <= 0) endFight(atk);
@@ -363,23 +401,26 @@ function tryHit(atk, def) {
   spawnRing(impactX, impactY, atk.color, 18 + result.dmg * 0.4);
   if (result.move === 'silver-claw' || result.move === 'silver-rush') spawnSlash(impactX, impactY, atk.facing, '#9ef6ff');
   if (result.isUpper) { showMsg('UPPERCUT!', 0.85); sfxUpper(); cam.tz = 1.22; }
-  shake = 8 + result.dmg * 0.25;
+  setShake(8 + result.dmg * 0.25);
   hitstop = result.isUpper ? 0.09 : 0.045;
   if (def.hp <= 0) endFight(atk);
 }
 
-function endFight(winner) {
+function endFight(outcome) {
+  if (gameState === 'ko') return;
+  const draw = outcome && outcome.type === 'draw';
+  const winner = draw ? null : (outcome && outcome.type === 'winner' ? outcome.winner : outcome);
   gameState = 'ko'; sfxKO(); cam.tz = 1.28;
-  const isPlayerWin = winner.isP1 || (mode===2 && winner===player);
-  showMsg(isPlayerWin ? 'YOU WIN!' : (mode===2 ? (winner.who==='shiroka'?'SHIROKA WINS':'RAGNA WINS') : 'YOU LOSE...'), 2.2);
+  const isPlayerWin = winner && (winner.isP1 || (mode===2 && winner===player));
+  showMsg(draw ? 'DRAW!' : (isPlayerWin ? 'YOU WIN!' : (mode===2 ? (winner.who==='shiroka'?'SHIROKA WINS':'RAGNA WINS') : 'YOU LOSE...')), 2.2);
   setTimeout(() => {
     if (gameState !== 'ko') return;
     document.getElementById('endBtns').style.display = 'flex';
-    document.getElementById('btnSave').style.display = 'block';
-    document.getElementById('btnExec').style.display = 'block';
-    document.getElementById('btnRematch').style.display = 'none';
+    document.getElementById('btnSave').style.display = draw ? 'none' : 'block';
+    document.getElementById('btnExec').style.display = draw ? 'none' : 'block';
+    document.getElementById('btnRematch').style.display = draw ? 'block' : 'none';
     window._winner = winner;
-    window._loser = (winner === player) ? enemy : player;
+    window._loser = winner ? ((winner === player) ? enemy : player) : null;
   }, 1800);
 }
 
@@ -434,13 +475,38 @@ function doRematch() {
   document.getElementById('bloodV').style.opacity = 0;
   document.getElementById('skipCutscene').style.display = 'none';
   battleMusic.volume = 0.38;
-  gameState = 'menu'; player = enemy = null; cinematic = null; particles = []; pressed.clear();
+  gameState = 'menu'; player = enemy = null; cinematic = null; particles = []; keys = {}; pressed.clear(); shake = 0; hitstop = 0;
   window._winner = window._loser = null;
   cam = { x: 0, y: 0, z: 1, tx: 0, ty: 0, tz: 1 };
+  updatePauseButton();
 }
+function updatePauseButton() {
+  const paused = gameState === 'pause';
+  const button = document.getElementById('pauseBtn');
+  button.textContent = paused ? 'RESUME (P)' : 'PAUSE (P)';
+  button.setAttribute('aria-pressed', String(paused));
+}
+function pauseFight() {
+  if (gameState !== 'fight') return;
+  gameState = 'pause';
+  keys = {}; pressed.clear();
+  battleMusic.pause();
+  if (actx.state === 'running') actx.suspend().catch(()=>{});
+  showMsg('PAUSED', 99);
+  updatePauseButton();
+}
+function resumeFight() {
+  if (gameState !== 'pause') return;
+  gameState = 'fight';
+  if (actx.state === 'suspended') actx.resume().catch(()=>{});
+  if(musicEnabled)battleMusic.play().catch(()=>{});
+  document.getElementById('msg').style.opacity = 0; msgT = 0;
+  updatePauseButton();
+}
+function pauseForFocusLoss() { pauseFight(); }
 function togglePause() {
-  if (gameState === 'fight') { gameState = 'pause'; battleMusic.pause(); showMsg('PAUSED', 99); }
-  else if (gameState === 'pause') { gameState = 'fight'; if(musicEnabled)battleMusic.play().catch(()=>{});document.getElementById('msg').style.opacity = 0; msgT = 0; }
+  if (gameState === 'fight') pauseFight();
+  else if (gameState === 'pause') resumeFight();
 }
 
 function updateFighter(f, opp, dt) {
@@ -632,8 +698,10 @@ function drawStage() {
     ctx.lineWidth = 1;
     for (const d of rain) {
       ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.lineTo(d.x-2, d.y+d.len); ctx.stroke();
-      d.y += d.v; d.x -= 0.8;
-      if (d.y > fy) { d.y = -20; d.x = Math.random()*W; }
+      if (gameState !== 'pause') {
+        d.y += d.v; d.x -= 0.8;
+        if (d.y > fy) { d.y = -20; d.x = Math.random()*W; }
+      }
     }
   }
   ctx.fillStyle = stage===1 ? 'rgba(0,255,255,0.18)' : 'rgba(100,100,140,0.25)';
@@ -1044,7 +1112,7 @@ function drawExecuteFlash(t) {
   if (t > 1.15 && t < 1.45) {
     ctx.save();
     ctx.setTransform(1,0,0,1,0,0);
-    ctx.fillStyle = `rgba(255,40,80,${0.28})`;
+    ctx.fillStyle = `rgba(255,40,80,${reducedEffects ? 0.08 : 0.28})`;
     ctx.fillRect(0,0,W,H);
     ctx.restore();
   }
@@ -1064,7 +1132,7 @@ function updateCamera() {
   if (player && enemy && gameState !== 'menu') {
     const mid = (player.x + enemy.x) / 2;
     cam.tx = (W/2 - mid) * 0.16;
-    if (!cinematic && gameState === 'fight') cam.tz = Math.min(1.12, Math.max(0.96, 920 / (Math.abs(player.x - enemy.x) + 520)));
+    if (!cinematic && gameState === 'fight') cam.tz = Math.min(1.18, Math.max(0.82, 920 / (Math.abs(player.x - enemy.x) + 520) * userZoom));
   } else {
     cam.tx = 0; cam.ty = 0; cam.tz = 1;
   }
@@ -1085,7 +1153,9 @@ function startGame() {
   enemy = makeFighter(eWho, false, W*0.72);
   timeLeft = 99; tAcc = 0; cinematic = null; particles = []; rain = [];
   gameState = 'fight';
-  cam = { x: 0, y: 0, z: 1.08, tx: 0, ty: 0, tz: 1 };
+  cam = { x: 0, y: 0, z: 1.08 * userZoom, tx: 0, ty: 0, tz: userZoom };
+  updatePauseButton();
+  canvas.focus();
   if (actx.state === 'suspended') actx.resume();
   if (musicEnabled) { battleMusic.currentTime = 0; battleMusic.play().catch(()=>{}); }
   showMsg('FIGHT!', 1.1);
@@ -1099,10 +1169,10 @@ function loop(now) {
   last = now;
 
   ctx.setTransform(1,0,0,1,0,0);
-  updateCamera();
-  if (shake > 0) {
+  if (gameState !== 'pause') updateCamera();
+  if (shake > 0 && gameState !== 'pause') {
     shake *= 0.88;
-    ctx.translate((Math.random()-0.5)*shake*2, (Math.random()-0.5)*shake*1.5);
+    if (!reducedEffects) ctx.translate((Math.random()-0.5)*shake*2, (Math.random()-0.5)*shake*1.5);
   }
   ctx.translate(W/2 + cam.x, H/2 + cam.y);
   ctx.scale(cam.z, cam.z);
@@ -1119,14 +1189,17 @@ function loop(now) {
   drawStage();
 
   const frozen = hitstop > 0;
-  if (frozen) hitstop -= dt;
+  if (frozen && gameState !== 'pause') hitstop -= dt;
 
-  if (gameState === 'fight' || gameState === 'ko' || gameState === 'pause') {
+  if (gameState === 'fight' || gameState === 'ko') {
     if (gameState === 'fight' && !frozen) {
-      tAcc += dt;
-      if (tAcc >= 1) { tAcc = 0; timeLeft--; if (timeLeft <= 0) { if (player.hp >= enemy.hp) endFight(player); else endFight(enemy); } }
-      updateFighter(player, enemy, dt);
-      updateFighter(enemy, player, dt);
+      const clock = C.advanceRoundTimer(timeLeft, tAcc, dt);
+      timeLeft = clock.timeLeft; tAcc = clock.accumulator;
+      if (clock.timedOut) endFight(C.resolveRound(player, enemy));
+      if (gameState === 'fight') {
+        updateFighter(player, enemy, dt);
+        updateFighter(enemy, player, dt);
+      }
     }
     if (cinematic && !frozen) updateCinematic(dt);
     if (msgT > 0) { msgT -= dt; if (msgT <= 0) document.getElementById('msg').style.opacity = 0; }
@@ -1138,11 +1211,16 @@ function loop(now) {
   }
   if (cinematic && cinematic.type === 'save') drawSaveCutscene(window._winner, window._loser);
   if (cinematic && cinematic.type === 'execute') drawExecuteFlash(cinematic.t);
-  drawParticles(dt);
+  drawParticles(gameState === 'pause' ? 0 : dt);
   updateHUD();
   pressed.clear();
 }
 requestAnimationFrame(loop);
+if (reducedEffects) {
+  document.body.classList.add('reduced-effects');
+  document.getElementById('reduceEffects').setAttribute('aria-pressed', 'true');
+}
+setMode(mode); setStage(stage); updatePauseButton();
 if (/[?&]demo=1\b/.test(location.search)) {
   window.addEventListener('load', () => { pick(0); startGame(); });
 }

@@ -147,8 +147,11 @@
     <div id="uiOverlay">
       <div class="hud" id="hud" style="display:none;">
         <div>
-          <div class="hearts" id="hearts"></div>
+          <div class="hearts" id="hearts" aria-label="Player one health"></div>
           <div style="font-size:0.7rem;color:#e8d8b0;text-shadow:1px 1px 0 #000;margin-top:4px;" id="playerName"></div>
+          <div id="secondPlayerStatus" style="display:none;margin-top:6px;font-size:0.7rem;color:#e8d8b0;text-shadow:1px 1px 0 #000;">
+            <div id="secondPlayerName"></div><div class="hearts" id="secondHearts" aria-label="Player two health"></div>
+          </div>
         </div>
         <div class="hud-right">
           <div>Monsters: <span id="killCount">0</span></div>
@@ -202,6 +205,8 @@
         <button id="modeCoop">Local Co-op (2 Players)</button>
         <button id="modePvp">Local Duel Mode</button>
       </div>
+      <label for="seedInput" style="display:block;margin-top:10px;font-size:0.75rem;color:#a09080;">World seed (same seed = same map and opening spawns)</label>
+      <input id="seedInput" type="text" value="eldenbrook" maxlength="48" style="margin-top:4px;padding:7px 10px;background:#120e1b;border:1px solid #5a4a6a;border-radius:4px;color:#e8d8b0;">
       <button class="primary" id="playBtn" disabled style="opacity:0.5;">ENTER ELDENBROOK</button>
       <div style="margin-top:16px;font-size:0.75rem;color:#706050;">
         Solo: Press C to summon AI companions · Co-op: Player 2 uses WASD + F · Duel: Friendly fire on
@@ -224,8 +229,8 @@
     </div>
     
     <div class="screen hidden" id="victoryScreen">
-      <h1 style="font-size:2rem;">VICTORY!</h1>
-      <p style="color:#a09080;margin:12px 0;max-width:360px;text-align:center;">
+      <h1 id="victoryTitle" style="font-size:2rem;">VICTORY!</h1>
+      <p id="victoryText" style="color:#a09080;margin:12px 0;max-width:360px;text-align:center;">
         The Shadow Knight falls! Eldenbrook is safe... for now.<br>
         You and your companions defended the Vale.
       </p>
@@ -236,12 +241,14 @@
   
   <footer>Vale Guardians · One Level Prototype · Works on Mac (Safari/Chrome) · Offline</footer>
 
+<script src="vale-core.js"></script>
 <script>
 // ============================================================
 // VALE GUARDIANS - SNES-style top-down adventure (one town)
 // ============================================================
 
 (() => {
+  const V = window.ValeCore;
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
   const W = 800, H = 480;
@@ -256,6 +263,9 @@
   const victoryScreen = document.getElementById('victoryScreen');
   const hud = document.getElementById('hud');
   const heartsEl = document.getElementById('hearts');
+  const secondHeartsEl = document.getElementById('secondHearts');
+  const secondPlayerStatus = document.getElementById('secondPlayerStatus');
+  const secondPlayerNameEl = document.getElementById('secondPlayerName');
   const playerNameEl = document.getElementById('playerName');
   const killCountEl = document.getElementById('killCount');
   const allyCountEl = document.getElementById('allyCount');
@@ -279,8 +289,12 @@
   let kills = 0;
   let bossSpawned = false;
   let bossDefeated = false;
+  let bossDefeatTimer = 0;
   let keys = {};
   let lastTime = 0;
+  let simulationAccumulator = 0;
+  let worldSeed = 'eldenbrook';
+  let random = V.createRng(worldSeed);
   let dialogTimer = 0;
   let spawnTimer = 0;
   let frame = 0;
@@ -320,15 +334,15 @@
         map[y][x] = 0;
         // Paths (cross)
         if (x === 20 || y === 15) map[y][x] = 1;
-        if ((x>=18 && x<=22) || (y>=13 && y<=17)) if (Math.random()>0.3) map[y][x]=1;
+        if ((x>=18 && x<=22) || (y>=13 && y<=17)) if (random()>0.3) map[y][x]=1;
         // River
         if (x >= 8 && x <= 10 && y > 3 && y < MAP_H-3) map[y][x] = 3;
         // Bridge
         if (x>=8 && x<=10 && y===15) map[y][x]=9;
         // Trees
-        if ((x+y) % 7 === 0 && map[y][x]===0 && Math.random()>0.6) map[y][x]=4;
+        if ((x+y) % 7 === 0 && map[y][x]===0 && random()>0.6) map[y][x]=4;
         // Flowers
-        if (map[y][x]===0 && Math.random()>0.92) map[y][x]=5;
+        if (map[y][x]===0 && random()>0.92) map[y][x]=5;
         // Houses (simple blocks)
         // North house
         if (x>=16 && x<=24 && y>=4 && y<=8) {
@@ -360,6 +374,25 @@
     }
     // Clear spawn area
     for (let y=13; y<=17; y++) for (let x=18; x<=22; x++) if (map[y][x]!==8) map[y][x]=1;
+    ensureRequiredRoutes();
+  }
+
+  function carveRoute(from, to) {
+    let x = from.x, y = from.y;
+    while (x !== to.x) { if (x > 0 && x < MAP_W-1 && y > 0 && y < MAP_H-1) map[y][x] = 1; x += Math.sign(to.x - x); }
+    while (y !== to.y) { if (x > 0 && x < MAP_W-1 && y > 0 && y < MAP_H-1) map[y][x] = 1; y += Math.sign(to.y - y); }
+    if (x > 0 && x < MAP_W-1 && y > 0 && y < MAP_H-1) map[y][x] = 1;
+  }
+
+  function ensureRequiredRoutes() {
+    const spawn = {x:20, y:15};
+    const required = [{x:14,y:10}, {x:26,y:20}, {x:12,y:22}, {x:20,y:8}];
+    required.forEach(target => {
+      if (!V.routeExists(map, MAP_W, MAP_H, spawn, target)) carveRoute(spawn, target);
+    });
+    if (!V.requiredRoutesReachable(map, MAP_W, MAP_H, spawn, required)) {
+      throw new Error('Required Eldenbrook routes are not reachable');
+    }
   }
 
   // Solid tiles for collision
@@ -621,10 +654,10 @@
   }
 
   // ---------- Entities ----------
-  function createPlayer(charType, id, x, y, isHuman=true) {
+  function createPlayer(charType, id, x, y, isHuman=true, team='heroes') {
     const c = CHARS[charType];
     return {
-      id, charType, x, y,
+      id, charType, x, y, kind:'hero', team,
       vx:0, vy:0,
       hp: c.hp, maxHp: c.hp,
       speed: c.speed,
@@ -640,8 +673,8 @@
 
   function createEnemy(type, x, y) {
     const base = {
-      id: Math.random(),
-      type, x, y,
+      id: random(),
+      type, x, y, kind:'enemy', team:'monsters',
       vx:0, vy:0,
       hitFlash: 0,
       attackCd: 0,
@@ -658,8 +691,8 @@
     for (let i=0; i<count; i++) {
       particles.push({
         x, y,
-        vx: (Math.random()-0.5)*4,
-        vy: (Math.random()-0.5)*4 - 1,
+        vx: (random()-0.5)*4,
+        vy: (random()-0.5)*4 - 1,
         life: 1,
         color
       });
@@ -668,6 +701,8 @@
 
   // ---------- Game logic ----------
   function startGame() {
+    worldSeed = document.getElementById('seedInput').value.trim() || 'eldenbrook';
+    random = V.createRng(worldSeed);
     buildMap();
     players = [];
     allies = [];
@@ -677,30 +712,30 @@
     kills = 0;
     bossSpawned = false;
     bossDefeated = false;
+    bossDefeatTimer = 0;
     spawnTimer = 0;
+    simulationAccumulator = 0;
     
     // Main player
-    const p1 = createPlayer(selectedChar, 0, 20*TILE + 16, 15*TILE + 16, true);
+    const p1 = createPlayer(selectedChar, 0, 20*TILE + 16, 15*TILE + 16, true, gameMode==='pvp'?'p1':'heroes');
     players.push(p1);
     
     if (gameMode === 'coop' || gameMode === 'pvp') {
       // Second human player - pick a different char if possible
       let char2 = (selectedChar + 1) % 3;
-      const p2 = createPlayer(char2, 1, 20*TILE + 40, 15*TILE + 16, true);
+      const p2 = createPlayer(char2, 1, 20*TILE + 40, 15*TILE + 16, true, gameMode==='pvp'?'p2':'heroes');
       players.push(p2);
     }
     
-    // NPCs
-    npcs = [
+    // NPCs and monsters do not enter an isolated local duel.
+    npcs = gameMode === 'pvp' ? [] : [
       {x: 14*TILE, y: 10*TILE, color:'#7a5a3a', name:'Old Man', text:'Monsters have been pouring from the woods... Please help us!', showBubble:false},
       {x: 26*TILE, y: 20*TILE, color:'#9a6a5a', name:'Merchant', text:'I have no weapons left... Take care out there, hero!', showBubble:false},
       {x: 12*TILE, y: 22*TILE, color:'#5a7a9a', name:'Child', text:'I saw a huge dark knight near the fountain last night!', showBubble:false}
     ];
     
     // Initial enemies
-    for (let i=0; i<6; i++) {
-      spawnEnemyRandom();
-    }
+    if (gameMode !== 'pvp') for (let i=0; i<6; i++) spawnEnemyRandom();
     
     state = 'play';
     titleScreen.classList.add('hidden');
@@ -716,13 +751,13 @@
   function spawnEnemyRandom() {
     let x, y, tries=0;
     do {
-      x = (5 + Math.random()*30) * TILE;
-      y = (5 + Math.random()*20) * TILE;
+      x = (5 + random()*30) * TILE;
+      y = (5 + random()*20) * TILE;
       tries++;
     } while (tries < 20 && (isSolid(Math.floor(x/TILE), Math.floor(y/TILE)) || distToPlayers(x,y) < 120));
     
     const types = ['slime','slime','spiker','bat'];
-    const t = types[Math.floor(Math.random()*types.length)];
+    const t = types[Math.floor(random()*types.length)];
     enemies.push(createEnemy(t, x, y));
   }
 
@@ -742,16 +777,26 @@
   function updateHUD() {
     if (players.length === 0) return;
     const p = players[0];
-    heartsEl.innerHTML = '';
-    for (let i=0; i<p.maxHp; i++) {
-      const h = document.createElement('div');
-      h.className = 'heart' + (i >= p.hp ? ' empty' : '');
-      heartsEl.appendChild(h);
+    renderHearts(heartsEl, p);
+    playerNameEl.textContent = CHARS[p.charType].name + (p.hp<=0 ? ' (down)' : '');
+    const p2 = players[1];
+    secondPlayerStatus.style.display = p2 ? 'block' : 'none';
+    if (p2) {
+      secondPlayerNameEl.textContent = CHARS[p2.charType].name + (p2.hp<=0 ? ' (down)' : '');
+      renderHearts(secondHeartsEl, p2);
     }
-    playerNameEl.textContent = CHARS[p.charType].name;
     killCountEl.textContent = kills;
     allyCountEl.textContent = allies.length;
     modeLabel.textContent = gameMode === 'solo' ? 'Solo + AI' : gameMode === 'coop' ? 'Co-op' : 'Duel';
+  }
+
+  function renderHearts(container, player) {
+    container.innerHTML = '';
+    for (let i=0; i<player.maxHp; i++) {
+      const h = document.createElement('div');
+      h.className = 'heart' + (i >= player.hp ? ' empty' : '');
+      container.appendChild(h);
+    }
   }
 
   function showDialog(name, text) {
@@ -762,7 +807,7 @@
   }
 
   function attack(p) {
-    if (p.attackCd > 0 || p.attacking) return;
+    if (!V.canUseAbility(p, gameMode)) return;
     p.attacking = true;
     p.attackFrame = 0;
     p.attackCd = p.charType === 1 ? 25 : 18;
@@ -780,7 +825,8 @@
         vy: 0,
         life: 40,
         dmg: CHARS[1].dmg,
-        owner: p.id,
+        ownerId: p.id,
+        team: p.team,
         color: '#e0a0ff'
       });
     } else {
@@ -808,7 +854,7 @@
         if (other.id === p.id || other.invuln > 0) return;
         const d = Math.hypot(other.x - hx, other.y - hy);
         if (d < reach/2 + 12) {
-          damagePlayer(other, CHARS[p.charType].dmg);
+          damagePlayer(other, CHARS[p.charType].dmg, p);
         }
       });
     }
@@ -838,17 +884,12 @@
       playBeep(120, 0.15);
       if (e.type === 'boss') {
         bossDefeated = true;
-        setTimeout(() => {
-          state = 'victory';
-          victoryScreen.classList.remove('hidden');
-          document.getElementById('vicKills').textContent = kills;
-          hud.style.display = 'none';
-        }, 800);
+        bossDefeatTimer = 0.8;
       }
     }
   }
 
-  function damagePlayer(p, dmg) {
+  function damagePlayer(p, dmg, attacker=null) {
     if (p.invuln > 0) return;
     p.hp -= dmg;
     p.invuln = 40;
@@ -856,6 +897,11 @@
     playBeep(80, 0.1);
     updateHUD();
     if (p.hp <= 0) {
+      if (gameMode === 'pvp' && attacker) {
+        const outcome=V.duelOutcome(players);
+        if(outcome)endDuel(outcome);
+        return;
+      }
       // check if all human players dead
       const humansAlive = players.filter(pl => pl.isHuman && pl.hp > 0).length;
       if (humansAlive === 0) {
@@ -865,6 +911,24 @@
         hud.style.display = 'none';
       }
     }
+  }
+
+  function endDuel(outcome) {
+    if (state !== 'play') return;
+    state='victory';
+    const title=document.getElementById('victoryTitle');
+    const text=document.getElementById('victoryText');
+    if(outcome.type==='draw'){
+      title.textContent='DUEL DRAW';
+      text.textContent='Both guardians fell at the same moment.';
+    }else{
+      const winner=players.find(p=>p.id===outcome.winnerId);
+      title.textContent='DUEL VICTORY!';
+      text.textContent=winner?CHARS[winner.charType].name+' wins the local duel.':'A guardian wins the local duel.';
+    }
+    victoryScreen.classList.remove('hidden');
+    document.getElementById('vicKills').textContent='—';
+    hud.style.display='none';
   }
 
   function summonAlly() {
@@ -904,6 +968,18 @@
   function update(dt) {
     if (state !== 'play') return;
     frame++;
+    if (bossDefeated && bossDefeatTimer > 0) {
+      bossDefeatTimer -= dt;
+      if (bossDefeatTimer <= 0) {
+        state = 'victory';
+        document.getElementById('victoryTitle').textContent = 'VICTORY!';
+        document.getElementById('victoryText').innerHTML = 'The Shadow Knight falls! Eldenbrook is safe... for now.<br>You and your companions defended the Vale.';
+        victoryScreen.classList.remove('hidden');
+        document.getElementById('vicKills').textContent = kills;
+        hud.style.display = 'none';
+        return;
+      }
+    }
     
     // Dialog timer
     if (dialogTimer > 0) {
@@ -911,30 +987,6 @@
       if (dialogTimer <= 0) dialogBox.classList.remove('show');
     }
     
-    // Input for players
-    players.forEach((p, idx) => {
-      if (!p.isHuman || p.hp <= 0) return;
-      
-      let mx=0, my=0;
-      if (idx === 0) {
-        if (keys['ArrowUp'] || keys['w'] || keys['W']) my = -1;
-        if (keys['ArrowDown'] || keys['s'] || keys['S']) my = 1;
-        if (keys['ArrowLeft'] || keys['a'] || keys['A']) mx = -1;
-        if (keys['ArrowRight'] || keys['d'] || keys['D']) mx = 1;
-        if (keys['z'] || keys['Z'] || keys[' '] || keys['Enter']) attack(p);
-      } else {
-        // player 2 - already using WASD shared? Wait, conflict.
-        // For coop: P1 arrows only, P2 WASD
-        // I need to separate.
-        // Fix: re-bind
-      }
-      
-      // Better input separation
-      // P1: Arrows + Z/Space
-      // P2: WASD + F
-    });
-    
-    // Re-do input cleanly
     handlePlayerInput();
     
     // Update players
@@ -952,6 +1004,13 @@
       
       let nx = p.x + p.vx * speed;
       let ny = p.y + p.vy * speed;
+      if (gameMode === 'coop' && p.isHuman) {
+        const partner = players.find(other => other.id !== p.id && other.isHuman && other.hp > 0);
+        if (partner) {
+          const limited = V.clampToLeash({x:nx,y:ny}, partner, V.COOP_LEASH_DISTANCE);
+          nx = limited.x; ny = limited.y;
+        }
+      }
       
       // tile collision (simple AABB)
       const r = 10;
@@ -1008,9 +1067,9 @@
         // wander
         e.aiTimer--;
         if (e.aiTimer <= 0) {
-          e.vx = (Math.random()-0.5) * e.speed;
-          e.vy = (Math.random()-0.5) * e.speed;
-          e.aiTimer = 40 + Math.random()*60;
+          e.vx = (random()-0.5) * e.speed;
+          e.vy = (random()-0.5) * e.speed;
+          e.aiTimer = 40 + random()*60;
         }
       }
       
@@ -1025,7 +1084,7 @@
       // boss special: sometimes charge or spawn minions
       if (e.type === 'boss' && frame % 180 === 0) {
         // spawn a slime
-        enemies.push(createEnemy('slime', e.x + (Math.random()-0.5)*60, e.y + (Math.random()-0.5)*60));
+        enemies.push(createEnemy('slime', e.x + (random()-0.5)*60, e.y + (random()-0.5)*60));
       }
     });
     
@@ -1038,11 +1097,19 @@
       pr.y += pr.vy;
       pr.life--;
       
-      // hit enemies
+      // Projectiles carry an owner and team. In co-op they cannot hurt allies;
+      // in a duel they can only damage the opposing guardian.
       enemies.forEach(e => {
         if (e.hp <= 0) return;
-        if (Math.hypot(e.x - pr.x, e.y - pr.y) < e.r + 6) {
+        if (V.projectileCanDamage(pr, e, gameMode) && Math.hypot(e.x - pr.x, e.y - pr.y) < e.r + 6) {
           damageEnemy(e, pr.dmg, null);
+          pr.life = 0;
+        }
+      });
+      players.forEach(target => {
+        if (pr.life <= 0 || !V.projectileCanDamage(pr, target, gameMode)) return;
+        if (Math.hypot(target.x - pr.x, target.y - pr.y) < 18) {
+          damagePlayer(target, pr.dmg, players.find(player => player.id === pr.ownerId) || null);
           pr.life = 0;
         }
       });
@@ -1062,13 +1129,13 @@
     
     // Spawn more monsters
     spawnTimer++;
-    if (spawnTimer > 180 && enemies.length < 12 && !bossSpawned) {
+    if (gameMode !== 'pvp' && spawnTimer > 180 && enemies.length < 12 && !bossSpawned) {
       spawnEnemyRandom();
       spawnTimer = 0;
     }
     
     // Boss trigger: after 15 kills or near fountain long enough
-    if (!bossSpawned && kills >= 12) {
+    if (gameMode !== 'pvp' && !bossSpawned && kills >= 12) {
       bossSpawned = true;
       const boss = createEnemy('boss', 20*TILE, 8*TILE);
       enemies.push(boss);
@@ -1090,10 +1157,12 @@
       });
     });
     
-    // Camera: follow main player or average
-    if (players.length > 0 && players[0].hp > 0) {
-      const targetX = players[0].x - W/2;
-      const targetY = players[0].y - H/2;
+    // Co-op uses one shared camera. If one guardian falls, the surviving
+    // guardian becomes the focus instead of leaving the view behind.
+    const focus = V.cameraFocus(players);
+    if (focus) {
+      const targetX = focus.x - W/2;
+      const targetY = focus.y - H/2;
       camera.x += (targetX - camera.x) * 0.1;
       camera.y += (targetY - camera.y) * 0.1;
       // clamp
@@ -1157,7 +1226,7 @@
 
   function updateAllyAI(a) {
     // Follow nearest player and attack nearby enemies
-    let targetP = players[0];
+    let targetP = players.find(player => player.hp > 0) || null;
     let nearestE = null, minD=999;
     enemies.forEach(e => {
       if (e.hp<=0) return;
@@ -1236,31 +1305,46 @@
 
   // ---------- Main loop ----------
   function loop(ts) {
-    const dt = Math.min(50, ts - lastTime);
+    if (!lastTime) lastTime = ts;
+    const elapsed = Math.min(0.25, Math.max(0, (ts - lastTime) / 1000));
     lastTime = ts;
-    
-    update(dt);
+    if (state === 'play') {
+      const ticks = V.fixedSteps(simulationAccumulator, elapsed);
+      simulationAccumulator = ticks.accumulator;
+      for (let step = 0; step < ticks.steps && state === 'play'; step++) update(V.FIXED_STEP_SECONDS);
+    } else {
+      simulationAccumulator = 0;
+    }
     draw();
     
     requestAnimationFrame(loop);
   }
 
   // ---------- Input ----------
+  function clearInput() { keys = {}; }
+  function setPaused(paused) {
+    if (paused && state === 'play') {
+      state = 'pause';
+      simulationAccumulator = 0;
+      clearInput();
+      pauseScreen.classList.remove('hidden');
+    } else if (!paused && state === 'pause') {
+      state = 'play';
+      simulationAccumulator = 0;
+      lastTime = performance.now();
+      pauseScreen.classList.add('hidden');
+    }
+  }
   window.addEventListener('keydown', e => {
     keys[e.key] = true;
     if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
     
-    if (e.key === 'p' || e.key === 'P') {
-      if (state === 'play') {
-        state = 'pause';
-        pauseScreen.classList.remove('hidden');
-      } else if (state === 'pause') {
-        state = 'play';
-        pauseScreen.classList.add('hidden');
-      }
+    if (!e.repeat && (e.key === 'p' || e.key === 'P')) {
+      setPaused(state !== 'pause');
     }
   });
   window.addEventListener('keyup', e => { keys[e.key] = false; });
+  window.addEventListener('blur', () => { clearInput(); setPaused(true); });
 
   // ---------- UI buttons ----------
   document.getElementById('startBtn').onclick = () => {
@@ -1334,8 +1418,7 @@
   };
   
   document.getElementById('resumeBtn').onclick = () => {
-    state = 'play';
-    pauseScreen.classList.add('hidden');
+    setPaused(false);
   };
   document.getElementById('quitBtn').onclick = () => location.reload();
   document.getElementById('retryBtn').onclick = () => {

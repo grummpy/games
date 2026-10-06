@@ -95,6 +95,19 @@ check('block chips damage and Ragna special is an uppercut', () => {
   assert.ok(def.hp < 100);
 });
 
+check('move hit regions must overlap vertical hurt regions', () => {
+  const atk = Core.makeFighter('shiroka', true, 100);
+  const def = Core.makeFighter('ragna', false, 180);
+  atk.state = 'punch'; atk.facing = 1;
+  assert.equal(Core.computeHit(atk, def).hit, true);
+  def.y = -230;
+  assert.equal(Core.computeHit(atk, def).reason, 'vertical');
+  atk.state = 'special'; atk.atkHit = false;
+  const hit = Core.computeHit(atk, def);
+  assert.equal(hit.hit, true, 'uppercut region reaches an airborne opponent');
+  assert.ok(hit.hitRegion.top < hit.hitRegion.bottom);
+});
+
 check('pose interpolation and idle animation produce finite joint angles', () => {
   const f = Core.makeFighter('shiroka', true, 200);
   const a = Core.getPose(f, 0);
@@ -112,6 +125,19 @@ check('power duration and speed modifiers stay character-specific', () => {
   assert.ok(Core.powerDuration('shiroka') > Core.powerDuration('ragna'));
   assert.ok(Core.speedFor(s) > s.speed);
   assert.ok(Core.speedFor(r) < r.speed);
+});
+
+check('round clock retains fractional remainder and ties resolve fairly', () => {
+  let clock = Core.advanceRoundTimer(99, 0, 0.6);
+  assert.equal(clock.timeLeft, 99);
+  clock = Core.advanceRoundTimer(clock.timeLeft, clock.accumulator, 0.6);
+  assert.equal(clock.timeLeft, 98);
+  assert.ok(Math.abs(clock.accumulator - 0.2) < 0.0001);
+  const s = Core.makeFighter('shiroka', true, 100);
+  const r = Core.makeFighter('ragna', false, 200);
+  assert.equal(Core.resolveRound(s, r).type, 'draw');
+  r.hp = 80;
+  assert.equal(Core.resolveRound(s, r).winner, s);
 });
 
 if (process.exitCode) {
