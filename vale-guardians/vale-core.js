@@ -34,13 +34,10 @@
 
   function fixedSteps(accumulator, elapsedSeconds) {
     let total = Math.max(0, accumulator || 0) + Math.max(0, elapsedSeconds || 0);
-    let steps = Math.floor(total / FIXED_STEP_SECONDS);
-    if (steps > MAX_SIMULATION_STEPS) {
-      steps = MAX_SIMULATION_STEPS;
-      total = 0;
-    } else {
-      total -= steps * FIXED_STEP_SECONDS;
-    }
+    // Bound CPU work per rendered frame, but retain unspent simulation time so
+    // a slow display catches up instead of silently slowing the game world.
+    const steps = Math.min(Math.floor(total / FIXED_STEP_SECONDS), MAX_SIMULATION_STEPS);
+    total -= steps * FIXED_STEP_SECONDS;
     return { steps, accumulator: total };
   }
 

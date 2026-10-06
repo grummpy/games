@@ -21,13 +21,18 @@ check('seeded random map/spawn sequence is reproducible', () => {
   assert.deepEqual(Array.from({ length: 8 }, () => a()), Array.from({ length: 8 }, () => b()));
 });
 
-check('fixed tick accounting carries remainder and caps a stalled frame', () => {
+check('fixed tick accounting carries remainder, caps work, and catches up without dropping time', () => {
   let result = Core.fixedSteps(0, 1 / 120);
   assert.equal(result.steps, 0);
   result = Core.fixedSteps(result.accumulator, 1 / 120);
   assert.equal(result.steps, 1);
   assert.equal(result.accumulator, 0);
-  assert.equal(Core.fixedSteps(0, 2).steps, Core.MAX_SIMULATION_STEPS);
+  result = Core.fixedSteps(0, 0.1);
+  assert.equal(result.steps, Core.MAX_SIMULATION_STEPS);
+  assert.ok(Math.abs(result.accumulator - (1 / 60)) < 1e-12);
+  result = Core.fixedSteps(result.accumulator, 0);
+  assert.equal(result.steps, 1);
+  assert.ok(Math.abs(result.accumulator) < 1e-12);
 });
 
 check('required routes, co-op leash, and survivor camera are deterministic', () => {
@@ -47,6 +52,15 @@ check('duel team projectiles and draw/winner rules cannot affect co-op teammates
   assert.equal(Core.canUseAbility({ hp: 2, attacking: false, attackCd: 0 }, 'pvp'), true);
   assert.deepEqual(JSON.parse(JSON.stringify(Core.duelOutcome([{ id: 0, hp: 0 }, { id: 1, hp: 0 }]))), { type: 'draw' });
   assert.deepEqual(JSON.parse(JSON.stringify(Core.duelOutcome([{ id: 0, hp: 0 }, { id: 1, hp: 2 }]))), { type: 'winner', winnerId: 1 });
+});
+
+check('same-tick mutual lethal damage resolves as a duel draw after both hits', () => {
+  const duelists = [{ id: 0, hp: 1 }, { id: 1, hp: 1 }];
+  // This models two active attacks/projectiles being applied before the tick's
+  // outcome is evaluated, matching the browser update order.
+  duelists[0].hp -= 1;
+  duelists[1].hp -= 1;
+  assert.deepEqual(JSON.parse(JSON.stringify(Core.duelOutcome(duelists))), { type: 'draw' });
 });
 
 if (process.exitCode) process.exit(1);

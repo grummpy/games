@@ -714,6 +714,7 @@
     bossDefeated = false;
     bossDefeatTimer = 0;
     spawnTimer = 0;
+    frame = 0;
     simulationAccumulator = 0;
     
     // Main player
@@ -897,11 +898,9 @@
     playBeep(80, 0.1);
     updateHUD();
     if (p.hp <= 0) {
-      if (gameMode === 'pvp' && attacker) {
-        const outcome=V.duelOutcome(players);
-        if(outcome)endDuel(outcome);
-        return;
-      }
+      // Duel outcome is deliberately resolved once all same-tick damage,
+      // including projectiles, has been applied below.
+      if (gameMode === 'pvp') return;
       // check if all human players dead
       const humansAlive = players.filter(pl => pl.isHuman && pl.hp > 0).length;
       if (humansAlive === 0) {
@@ -1118,6 +1117,16 @@
       if (isSolid(Math.floor(pr.x/TILE), Math.floor(pr.y/TILE))) pr.life = 0;
     });
     projectiles = projectiles.filter(pr => pr.life > 0);
+
+    // Do not announce a duel winner during an individual hit: two lethal hits
+    // in the same fixed tick are a draw.
+    if (gameMode === 'pvp') {
+      const outcome = V.duelOutcome(players);
+      if (outcome) {
+        endDuel(outcome);
+        return;
+      }
+    }
     
     // Particles
     particles.forEach(p => {
@@ -1306,7 +1315,7 @@
   // ---------- Main loop ----------
   function loop(ts) {
     if (!lastTime) lastTime = ts;
-    const elapsed = Math.min(0.25, Math.max(0, (ts - lastTime) / 1000));
+    const elapsed = Math.max(0, (ts - lastTime) / 1000);
     lastTime = ts;
     if (state === 'play') {
       const ticks = V.fixedSteps(simulationAccumulator, elapsed);

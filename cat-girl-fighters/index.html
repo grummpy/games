@@ -174,11 +174,17 @@ function interactiveTarget(target) {
   return target && target.closest && target.closest('button, input, select, textarea, a');
 }
 window.addEventListener('keydown', e => {
+  // P is a global pause/resume control even when a visual-control button has
+  // focus. Other keys remain scoped away from ordinary form controls.
+  if (!e.repeat && e.code === 'KeyP' && (gameState==='fight'||gameState==='pause')) {
+    e.preventDefault();
+    togglePause();
+    return;
+  }
   if (interactiveTarget(e.target)) return;
   if (!e.repeat) pressed.add(e.code);
   keys[e.code] = true;
   if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
-  if (!e.repeat && e.code === 'KeyP' && (gameState==='fight'||gameState==='pause')) togglePause();
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 window.addEventListener('blur', () => { keys = {}; pressed.clear(); pauseForFocusLoss(); });
@@ -216,11 +222,13 @@ function setZoom(delta) {
   userZoom = Math.max(0.85, Math.min(1.15, userZoom + delta));
   if (previous !== userZoom && gameState !== 'menu') cam.tz *= userZoom / previous;
   document.getElementById('zoomReadout').textContent = Math.round(userZoom * 100) + '%';
+  if (gameState !== 'menu') canvas.focus();
 }
 function toggleReducedEffects() {
   reducedEffects = !reducedEffects;
   document.body.classList.toggle('reduced-effects', reducedEffects);
   document.getElementById('reduceEffects').setAttribute('aria-pressed', String(reducedEffects));
+  if (gameState !== 'menu') canvas.focus();
 }
 function setShake(amount) { shake = reducedEffects ? Math.min(1, amount * 0.12) : amount; }
 function showMsg(t, sec=1.5) {
@@ -507,6 +515,7 @@ function pauseForFocusLoss() { pauseFight(); }
 function togglePause() {
   if (gameState === 'fight') pauseFight();
   else if (gameState === 'pause') resumeFight();
+  if (gameState === 'fight' || gameState === 'pause') canvas.focus();
 }
 
 function updateFighter(f, opp, dt) {

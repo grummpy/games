@@ -12,6 +12,8 @@ for (const text of [
   '<button type="button" class="card ragna" id="c1"',
   'function startGame()',
   'function pauseForFocusLoss()',
+  "e.code === 'KeyP' && (gameState==='fight'||gameState==='pause')",
+  "if (gameState !== 'menu') canvas.focus();",
   "document.addEventListener('visibilitychange'",
   'C.advanceRoundTimer(timeLeft, tAcc, dt)',
   'C.resolveRound(player, enemy)',
